@@ -28,8 +28,9 @@ const Inventario = () => {
     try {
       setLoading(true);
       const response = await productosService.getAll();
-      // Asegurar que response.data sea un array
-      setProductos(Array.isArray(response.data) ? response.data : []);
+      
+      // Asegurar que response.data.data sea un array
+      setProductos(Array.isArray(response.data.data) ? response.data.data : []);
     } catch (error) {
       console.error('Error loading productos:', error);
       alert('Error al cargar productos');

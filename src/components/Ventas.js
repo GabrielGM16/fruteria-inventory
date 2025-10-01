@@ -28,8 +28,8 @@ const Ventas = () => {
       ]);
       
       // Ensure data is an array before using array methods
-      const productosData = Array.isArray(productosResponse.data) ? productosResponse.data : [];
-      const ventasData = Array.isArray(ventasResponse.data) ? ventasResponse.data : [];
+      const productosData = Array.isArray(productosResponse.data.data) ? productosResponse.data.data : [];
+      const ventasData = Array.isArray(ventasResponse.data.data) ? ventasResponse.data.data : [];
       
       setProductos(productosData.filter(p => p.activo && p.stock_actual > 0));
       setVentas(ventasData);
@@ -61,7 +61,7 @@ const Ventas = () => {
       setCarrito([...carrito, {
         id: producto.id,
         nombre: producto.nombre,
-        precio: producto.precio_venta,
+        precio: parseFloat(producto.precio_venta),
         cantidad: 1,
         stock_disponible: producto.stock_actual,
         unidad_medida: producto.unidad_medida
