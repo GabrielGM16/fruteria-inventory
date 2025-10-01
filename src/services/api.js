@@ -1,53 +1,91 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3001/api';
+// Configuración base de la API
+const API_BASE_URL = 'http://localhost:3001/api';
 
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
-export const getProductos = async () => {
-  const response = await api.get('/productos');
-  return response.data;
+// Interceptor para agregar token de autenticación
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Interceptor para manejar respuestas y errores
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Servicios de Productos
+export const productosService = {
+  getAll: () => api.get('/productos'),
+  getById: (id) => api.get(`/productos/${id}`),
+  create: (producto) => api.post('/productos', producto),
+  update: (id, producto) => api.put(`/productos/${id}`, producto),
+  delete: (id) => api.delete(`/productos/${id}`),
+  updateStock: (id, stock) => api.put(`/inventario/${id}/stock`, { stock }),
+  getAlertas: () => api.get('/inventario/alertas'),
 };
 
-export const getProducto = async (id) => {
-  const response = await api.get(`/productos/${id}`);
-  return response.data;
+// Servicios de Entradas
+export const entradasService = {
+  getAll: () => api.get('/entradas'),
+  getById: (id) => api.get(`/entradas/${id}`),
+  create: (entrada) => api.post('/entradas', entrada),
+  update: (id, entrada) => api.put(`/entradas/${id}`, entrada),
+  delete: (id) => api.delete(`/entradas/${id}`),
+  getProveedores: () => api.get('/proveedores'),
 };
 
-export const crearProducto = async (producto) => {
-  const response = await api.post('/productos', producto);
-  return response.data;
+// Servicios de Ventas
+export const ventasService = {
+  getAll: () => api.get('/ventas'),
+  create: (venta) => api.post('/ventas', venta),
+  getHistorial: (params) => api.get('/ventas/historial', { params }),
 };
 
-export const actualizarProducto = async (id, producto) => {
-  const response = await api.put(`/productos/${id}`, producto);
-  return response.data;
+// Servicios de Mermas
+export const mermasService = {
+  getAll: () => api.get('/mermas'),
+  create: (merma) => api.post('/mermas', merma),
+  getReportes: () => api.get('/mermas/reportes'),
 };
 
-export const registrarEntrada = async (entrada) => {
-  const response = await api.post('/entradas', entrada);
-  return response.data;
+// Servicios de Estadísticas
+export const estadisticasService = {
+  getVentas: (params) => api.get('/estadisticas/ventas', { params }),
+  getProductos: () => api.get('/estadisticas/productos'),
+  getReportesPDF: (tipo) => api.get(`/reportes/pdf?tipo=${tipo}`, { responseType: 'blob' }),
 };
 
-export const registrarVenta = async (venta) => {
-  const response = await api.post('/ventas', venta);
-  return response.data;
+// Servicios de Autenticación
+export const authService = {
+  login: (credentials) => api.post('/auth/login', credentials),
+  logout: () => {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  },
+  getCurrentUser: () => api.get('/auth/me'),
 };
 
-export const registrarMerma = async (merma) => {
-  const response = await api.post('/mermas', merma);
-  return response.data;
-};
-
-export const getEstadisticas = async () => {
-  const response = await api.get('/estadisticas');
-  return response.data;
-};
-
-export const getVentasPorPeriodo = async (inicio, fin) => {
-  const response = await api.get(`/ventas/periodo?inicio=${inicio}&fin=${fin}`);
+export default api;
