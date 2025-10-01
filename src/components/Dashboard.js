@@ -10,13 +10,24 @@ const Dashboard = () => {
   });
   const [alertas, setAlertas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
 
   useEffect(() => {
     loadDashboardData();
+    
+    // Configurar actualización automática cada 30 segundos
+    const interval = setInterval(() => {
+      console.log('Dashboard: Actualizando datos automáticamente...');
+      loadDashboardData();
+    }, 30000);
+
+    // Limpiar el intervalo cuando el componente se desmonte
+    return () => clearInterval(interval);
   }, []);
 
   const loadDashboardData = async () => {
     try {
+      console.log('Dashboard: Iniciando carga de datos...');
       setLoading(true);
       
       // Cargar estadísticas básicas
@@ -26,9 +37,18 @@ const Dashboard = () => {
         ventasService.getAll()
       ]);
 
-      const productos = Array.isArray(productosRes.data) ? productosRes.data : [];
-      const alertasData = Array.isArray(alertasRes.data) ? alertasRes.data : [];
-      const ventas = Array.isArray(ventasRes.data) ? ventasRes.data : [];
+      console.log('Dashboard: Respuesta productos:', productosRes);
+      console.log('Dashboard: Respuesta alertas:', alertasRes);
+      console.log('Dashboard: Respuesta ventas:', ventasRes);
+
+      // Corregir acceso a los datos - usar response.data.data
+      const productos = Array.isArray(productosRes.data?.data) ? productosRes.data.data : [];
+      const alertasData = Array.isArray(alertasRes.data?.data) ? alertasRes.data.data : [];
+      const ventas = Array.isArray(ventasRes.data?.data) ? ventasRes.data.data : [];
+
+      console.log('Dashboard: Productos procesados:', productos);
+      console.log('Dashboard: Alertas procesadas:', alertasData);
+      console.log('Dashboard: Ventas procesadas:', ventas);
 
       // Calcular estadísticas
       const hoy = new Date().toDateString();
@@ -43,16 +63,21 @@ const Dashboard = () => {
         return fechaVenta.getMonth() === mesActual && fechaVenta.getFullYear() === añoActual;
       }) : [];
 
-      setStats({
+      const newStats = {
         totalProductos: Array.isArray(productos) ? productos.length : 0,
         ventasHoy: Array.isArray(ventasHoy) ? ventasHoy.reduce((sum, venta) => sum + parseFloat(venta.total), 0) : 0,
         stockBajo: Array.isArray(productos) ? productos.filter(p => p.stock_actual <= p.stock_minimo).length : 0,
         ventasMes: Array.isArray(ventasMes) ? ventasMes.reduce((sum, venta) => sum + parseFloat(venta.total), 0) : 0
-      });
+      };
 
+      console.log('Dashboard: Estadísticas calculadas:', newStats);
+      setStats(newStats);
       setAlertas(Array.isArray(alertasData) ? alertasData : []);
+      setLastUpdate(new Date());
+      
+      console.log('Dashboard: Datos cargados exitosamente');
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      console.error('Dashboard: Error cargando datos:', error);
       // Set default values in case of error
       setStats({
         totalProductos: 0,
@@ -66,6 +91,11 @@ const Dashboard = () => {
     }
   };
 
+  const handleManualRefresh = () => {
+    console.log('Dashboard: Actualización manual solicitada');
+    loadDashboardData();
+  };
+
   if (loading) {
     return <div className="loading">Cargando dashboard...</div>;
   }
@@ -73,8 +103,25 @@ const Dashboard = () => {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">Panel de control - Frutería</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 className="page-title">Dashboard</h1>
+            <p className="page-subtitle">Panel de control - Frutería</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <span style={{ fontSize: '0.9rem', color: '#666' }}>
+              Última actualización: {lastUpdate.toLocaleTimeString()}
+            </span>
+            <button 
+              className="btn btn-primary"
+              onClick={handleManualRefresh}
+              disabled={loading}
+              style={{ padding: '8px 16px' }}
+            >
+              {loading ? '🔄 Actualizando...' : '🔄 Actualizar'}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Tarjetas de estadísticas */}
@@ -162,7 +209,7 @@ const Dashboard = () => {
             <h4 style={{ color: '#4a5568', marginBottom: '10px' }}>Estado del Inventario</h4>
             <p>✅ Productos activos: {stats.totalProductos}</p>
             <p>⚠️ Productos con stock bajo: {stats.stockBajo}</p>
-            <p>📊 Última actualización: {new Date().toLocaleString()}</p>
+            <p>📊 Última actualización: {lastUpdate.toLocaleString()}</p>
           </div>
           
           <div>
