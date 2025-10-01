@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { estadisticasService, productosService } from '../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { estadisticasService } from '../services/api';
 
 const Estadisticas = () => {
   const [loading, setLoading] = useState(true);
@@ -42,25 +42,21 @@ const Estadisticas = () => {
     
     setFechaFin(hoy.toISOString().split('T')[0]);
     setFechaInicio(hace30Dias.toISOString().split('T')[0]);
-    
-    loadEstadisticas();
   }, []);
 
-  const loadEstadisticas = async () => {
+  const loadEstadisticas = useCallback(async () => {
     try {
       setLoading(true);
       
       // Llamar a múltiples endpoints del backend para obtener estadísticas completas
-      const [dashboardResponse, resumenResponse, ventasResponse, productosResponse] = await Promise.all([
+      const [dashboardResponse, ventasResponse, productosResponse] = await Promise.all([
         estadisticasService.getDashboard(),
-        estadisticasService.getResumen(fechaInicio, fechaFin),
         estadisticasService.getVentas({ fecha_inicio: fechaInicio, fecha_fin: fechaFin }),
         estadisticasService.getProductos()
       ]);
       
       // Combinar datos de todas las respuestas
       const dashboardData = dashboardResponse.data?.data || {};
-      const resumenData = resumenResponse.data?.data || {};
       const ventasData = ventasResponse.data?.data || {};
       const productosData = productosResponse.data?.data || {};
       
@@ -113,7 +109,13 @@ const Estadisticas = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fechaInicio, fechaFin]);
+
+  useEffect(() => {
+    if (fechaInicio && fechaFin) {
+      loadEstadisticas();
+    }
+  }, [fechaInicio, fechaFin, loadEstadisticas]);
 
   const aplicarFiltro = () => {
     loadEstadisticas();
@@ -189,7 +191,7 @@ const Estadisticas = () => {
             {formatMoney(stats.gananciaTotal)}
           </p>
           <small style={{ opacity: 0.8 }}>
-            Margen: {stats.ingresosTotal > 0 ? ((stats.gananciaTotal / stats.ingresosTotal) * 100).toFixed(1) : 0}%
+            Margen: {stats.ingresosTotal > 0 ? (parseFloat(stats.gananciaTotal) / parseFloat(stats.ingresosTotal) * 100).toFixed(1) : 0}%
           </small>
         </div>
 
@@ -228,7 +230,7 @@ const Estadisticas = () => {
             <tbody>
               {stats.topProductos && stats.topProductos.slice(0, 10).map((producto, index) => {
                 const participacion = stats.ingresosTotal > 0 
-                  ? ((producto.total_ingresos / stats.ingresosTotal) * 100).toFixed(1)
+                  ? (parseFloat(producto.total_ingresos || 0) / parseFloat(stats.ingresosTotal) * 100).toFixed(1)
                   : 0;
                 
                 return (
@@ -250,7 +252,7 @@ const Estadisticas = () => {
                     </td>
                     <td style={{ padding: '12px', fontWeight: 'bold' }}>{producto.producto_nombre}</td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
-                      {parseFloat(producto.total_cantidad).toFixed(2)}
+                      {parseFloat(producto.total_cantidad || 0).toFixed(2)}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'right', color: '#059669', fontWeight: 'bold' }}>
                       {formatMoney(producto.total_ingresos)}
@@ -310,7 +312,7 @@ const Estadisticas = () => {
                 {stats.ventasDiarias && stats.ventasDiarias.slice(0, 15).map((dia, index) => {
                   const diaAnterior = stats.ventasDiarias[index + 1];
                   const tendencia = diaAnterior 
-                    ? ((dia.total_ingresos - diaAnterior.total_ingresos) / diaAnterior.total_ingresos) * 100
+                    ? (parseFloat(dia.total_ingresos || 0) - parseFloat(diaAnterior.total_ingresos || 0)) / parseFloat(diaAnterior.total_ingresos || 1) * 100
                     : 0;
                   
                   return (
@@ -335,7 +337,7 @@ const Estadisticas = () => {
                             fontSize: '12px',
                             fontWeight: 'bold'
                           }}>
-                            {tendencia > 0 ? '↑' : tendencia < 0 ? '↓' : '→'} {Math.abs(tendencia).toFixed(1)}%
+                            {tendencia > 0 ? '↑' : tendencia < 0 ? '↓' : '→'} {Math.abs(parseFloat(tendencia || 0)).toFixed(1)}%
                           </span>
                         )}
                       </td>
@@ -358,7 +360,7 @@ const Estadisticas = () => {
           <div style={{ marginTop: '20px' }}>
             {Object.entries(stats.metodosPago).map(([metodo, monto]) => {
               const total = Object.values(stats.metodosPago).reduce((a, b) => a + b, 0);
-              const porcentaje = total > 0 ? ((monto / total) * 100).toFixed(1) : 0;
+              const porcentaje = total > 0 ? (parseFloat(monto || 0) / parseFloat(total) * 100).toFixed(1) : 0;
               
               const colores = {
                 efectivo: '#10b981',
@@ -420,16 +422,16 @@ const Estadisticas = () => {
               </thead>
               <tbody>
                 {stats.productosStockBajo.map(producto => {
-                  const porcentaje = (producto.stock_actual / producto.stock_minimo) * 100;
+                  const porcentaje = (parseFloat(producto.stock_actual || 0) / parseFloat(producto.stock_minimo || 1)) * 100;
                   
                   return (
                     <tr key={producto.id} style={{ borderBottom: '1px solid #fbbf24' }}>
                       <td style={{ padding: '12px', fontWeight: 'bold' }}>{producto.nombre}</td>
                       <td style={{ padding: '12px', textAlign: 'center', color: '#dc2626', fontWeight: 'bold' }}>
-                        {parseFloat(producto.stock_actual).toFixed(2)}
+                        {parseFloat(producto.stock_actual || 0).toFixed(2)}
                       </td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
-                        {parseFloat(producto.stock_minimo).toFixed(2)}
+                        {parseFloat(producto.stock_minimo || 0).toFixed(2)}
                       </td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <span style={{
@@ -457,7 +459,7 @@ const Estadisticas = () => {
         <div className="card" style={{ textAlign: 'center', backgroundColor: '#f0f9ff' }}>
           <h4 style={{ margin: '0 0 10px 0', color: '#1e40af' }}>📊 Ticket Promedio</h4>
           <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 'bold', color: '#1e40af' }}>
-            {formatMoney(stats.ventasTotal > 0 ? stats.ingresosTotal / stats.ventasTotal : 0)}
+            {formatMoney(stats.ventasTotal > 0 ? parseFloat(stats.ingresosTotal || 0) / parseFloat(stats.ventasTotal || 1) : 0)}
           </p>
         </div>
 
@@ -465,7 +467,7 @@ const Estadisticas = () => {
           <h4 style={{ margin: '0 0 10px 0', color: '#166534' }}>💹 ROI</h4>
           <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 'bold', color: '#166534' }}>
             {stats.ingresosTotal > 0 && stats.gananciaTotal > 0
-              ? ((stats.gananciaTotal / (stats.ingresosTotal - stats.gananciaTotal)) * 100).toFixed(1)
+              ? (parseFloat(stats.gananciaTotal || 0) / (parseFloat(stats.ingresosTotal || 0) - parseFloat(stats.gananciaTotal || 0)) * 100).toFixed(1)
               : 0}%
           </p>
         </div>
@@ -474,7 +476,7 @@ const Estadisticas = () => {
           <h4 style={{ margin: '0 0 10px 0', color: '#991b1b' }}>📉 % Mermas</h4>
           <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 'bold', color: '#991b1b' }}>
             {stats.ingresosTotal > 0
-              ? ((stats.valorMermas / stats.ingresosTotal) * 100).toFixed(2)
+              ? (parseFloat(stats.valorMermas || 0) / parseFloat(stats.ingresosTotal || 1) * 100).toFixed(2)
               : 0}%
           </p>
         </div>
@@ -482,7 +484,7 @@ const Estadisticas = () => {
         <div className="card" style={{ textAlign: 'center', backgroundColor: '#faf5ff' }}>
           <h4 style={{ margin: '0 0 10px 0', color: '#6b21a8' }}>📦 Productos Vendidos</h4>
           <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 'bold', color: '#6b21a8' }}>
-            {stats.topProductos ? stats.topProductos.reduce((sum, p) => sum + parseFloat(p.total_cantidad), 0).toFixed(0) : 0}
+            {stats.topProductos ? stats.topProductos.reduce((sum, p) => sum + parseFloat(p.total_cantidad || 0), 0).toFixed(0) : 0}
           </p>
         </div>
       </div>
