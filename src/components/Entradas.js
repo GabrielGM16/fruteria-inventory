@@ -29,11 +29,15 @@ const Entradas = () => {
         entradasService.getAll(),
         productosService.getAll()
       ]);
-      setEntradas(entradasResponse.data);
-      setProductos(productosResponse.data);
+      // Asegurar que los datos sean arrays
+      setEntradas(Array.isArray(entradasResponse.data) ? entradasResponse.data : []);
+      setProductos(Array.isArray(productosResponse.data) ? productosResponse.data : []);
     } catch (error) {
       console.error('Error loading data:', error);
       alert('Error al cargar datos');
+      // En caso de error, asegurar que sean arrays vacíos
+      setEntradas([]);
+      setProductos([]);
     } finally {
       setLoading(false);
     }
@@ -98,12 +102,12 @@ const Entradas = () => {
   };
 
   const getProductoName = (productoId) => {
-    const producto = productos.find(p => p.id === productoId);
+    const producto = Array.isArray(productos) ? productos.find(p => p.id === productoId) : null;
     return producto ? producto.nombre : 'Producto no encontrado';
   };
 
-  const filteredEntradas = entradas.filter(entrada => {
-    const producto = productos.find(p => p.id === entrada.producto_id);
+  const filteredEntradas = Array.isArray(entradas) ? entradas.filter(entrada => {
+    const producto = Array.isArray(productos) ? productos.find(p => p.id === entrada.producto_id) : null;
     const matchesSearch = producto?.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          entrada.proveedor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          entrada.numero_factura?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -112,11 +116,11 @@ const Entradas = () => {
                        entrada.fecha_entrada.startsWith(dateFilter);
     
     return matchesSearch && matchesDate;
-  });
+  }) : [];
 
-  const totalEntradas = filteredEntradas.reduce((sum, entrada) => sum + parseFloat(entrada.cantidad), 0);
-  const totalValor = filteredEntradas.reduce((sum, entrada) => 
-    sum + (parseFloat(entrada.cantidad) * parseFloat(entrada.precio_unitario)), 0);
+  const totalEntradas = Array.isArray(filteredEntradas) ? filteredEntradas.reduce((sum, entrada) => sum + parseFloat(entrada.cantidad), 0) : 0;
+  const totalValor = Array.isArray(filteredEntradas) ? filteredEntradas.reduce((sum, entrada) => 
+    sum + (parseFloat(entrada.cantidad) * parseFloat(entrada.precio_unitario)), 0) : 0;
 
   if (loading) {
     return <div className="loading">Cargando entradas...</div>;
@@ -304,11 +308,11 @@ const Entradas = () => {
                   required
                 >
                   <option value="">Seleccionar producto</option>
-                  {productos.filter(p => p.activo).map(producto => (
+                  {Array.isArray(productos) ? productos.filter(p => p.activo).map(producto => (
                     <option key={producto.id} value={producto.id}>
                       {producto.nombre} - {producto.categoria}
                     </option>
-                  ))}
+                  )) : []}
                 </select>
               </div>
 

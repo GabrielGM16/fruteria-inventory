@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { productosService, ventasService, estadisticasService } from '../services/api';
+import { productosService, ventasService } from '../services/api';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({

@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// Configuración base de la API
 const API_BASE_URL = 'http://localhost:3001/api';
 
 const api = axios.create({
@@ -10,7 +9,7 @@ const api = axios.create({
   },
 });
 
-// Interceptor para agregar token de autenticación
+// Interceptor para token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -19,12 +18,10 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Interceptor para manejar respuestas y errores
+// Interceptor para errores
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -43,6 +40,10 @@ export const productosService = {
   create: (producto) => api.post('/productos', producto),
   update: (id, producto) => api.put(`/productos/${id}`, producto),
   delete: (id) => api.delete(`/productos/${id}`),
+};
+
+// Servicios de Inventario (separado)
+export const inventarioService = {
   updateStock: (id, stock) => api.put(`/inventario/${id}/stock`, { stock }),
   getAlertas: () => api.get('/inventario/alertas'),
 };
@@ -75,12 +76,20 @@ export const mermasService = {
 export const estadisticasService = {
   getVentas: (params) => api.get('/estadisticas/ventas', { params }),
   getProductos: () => api.get('/estadisticas/productos'),
-  getReportesPDF: (tipo) => api.get(`/reportes/pdf?tipo=${tipo}`, { responseType: 'blob' }),
+  getReportesPDF: (tipo) => api.get(`/reportes/pdf?tipo=${tipo}`, { 
+    responseType: 'blob' 
+  }),
 };
 
 // Servicios de Autenticación
 export const authService = {
-  login: (credentials) => api.post('/auth/login', credentials),
+  login: async (credentials) => {
+    const response = await api.post('/auth/login', credentials);
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+    }
+    return response;
+  },
   logout: () => {
     localStorage.removeItem('token');
     window.location.href = '/login';

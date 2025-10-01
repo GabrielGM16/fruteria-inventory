@@ -28,10 +28,13 @@ const Inventario = () => {
     try {
       setLoading(true);
       const response = await productosService.getAll();
-      setProductos(response.data);
+      // Asegurar que response.data sea un array
+      setProductos(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error loading productos:', error);
       alert('Error al cargar productos');
+      // En caso de error, asegurar que productos sea un array vacío
+      setProductos([]);
     } finally {
       setLoading(false);
     }
@@ -112,14 +115,14 @@ const Inventario = () => {
     });
   };
 
-  const filteredProductos = productos.filter(producto => {
+  const filteredProductos = Array.isArray(productos) ? productos.filter(producto => {
     const matchesSearch = producto.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          producto.categoria.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === '' || producto.categoria === filterCategory;
     return matchesSearch && matchesCategory;
-  });
+  }) : [];
 
-  const categories = [...new Set(productos.map(p => p.categoria))];
+  const categories = Array.isArray(productos) ? [...new Set(productos.map(p => p.categoria))] : [];
 
   if (loading) {
     return <div className="loading">Cargando inventario...</div>;
