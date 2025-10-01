@@ -63,16 +63,39 @@ const Dashboard = () => {
         return fechaVenta.getMonth() === mesActual && fechaVenta.getFullYear() === añoActual;
       }) : [];
 
+      // Debug: Analizar cada producto para detectar problemas de stock
+      console.log('Dashboard: Analizando productos para stock bajo...');
+      const productosConStockBajo = Array.isArray(productos) ? productos.filter(p => {
+        const stockActual = parseFloat(p.stock_actual);
+        const stockMinimo = parseFloat(p.stock_minimo);
+        
+        console.log(`Dashboard: Producto ${p.nombre}:`, {
+          stock_actual_original: p.stock_actual,
+          stock_minimo_original: p.stock_minimo,
+          stock_actual_parsed: stockActual,
+          stock_minimo_parsed: stockMinimo,
+          es_stock_bajo: stockActual < stockMinimo
+        });
+        
+        return stockActual < stockMinimo;
+      }) : [];
+
+      console.log('Dashboard: Productos con stock bajo encontrados:', productosConStockBajo);
+
       const newStats = {
         totalProductos: Array.isArray(productos) ? productos.length : 0,
         ventasHoy: Array.isArray(ventasHoy) ? ventasHoy.reduce((sum, venta) => sum + parseFloat(venta.total), 0) : 0,
-        stockBajo: Array.isArray(productos) ? productos.filter(p => p.stock_actual <= p.stock_minimo).length : 0,
+        stockBajo: productosConStockBajo.length,
         ventasMes: Array.isArray(ventasMes) ? ventasMes.reduce((sum, venta) => sum + parseFloat(venta.total), 0) : 0
       };
 
       console.log('Dashboard: Estadísticas calculadas:', newStats);
       setStats(newStats);
-      setAlertas(Array.isArray(alertasData) ? alertasData : []);
+      
+      // Usar la misma lógica para las alertas que para el contador
+      // En lugar de usar alertasData del servicio, filtrar productos localmente
+      console.log('Dashboard: Configurando alertas usando productos con stock bajo calculados localmente');
+      setAlertas(productosConStockBajo);
       setLastUpdate(new Date());
       
       console.log('Dashboard: Datos cargados exitosamente');
