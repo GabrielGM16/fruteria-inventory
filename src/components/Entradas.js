@@ -12,10 +12,9 @@ const Entradas = () => {
   const [formData, setFormData] = useState({
     producto_id: '',
     cantidad: '',
-    precio_unitario: '',
+    precio_compra: '',
     proveedor: '',
-    numero_factura: '',
-    observaciones: ''
+    nota: ''
   });
 
   useEffect(() => {
@@ -59,6 +58,8 @@ const Entradas = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      console.log('Entradas: Datos del formulario a enviar:', formData);
+      
       if (editingEntrada) {
         await entradasService.update(editingEntrada.id, formData);
         alert('Entrada actualizada exitosamente');
@@ -73,6 +74,7 @@ const Entradas = () => {
       loadData();
     } catch (error) {
       console.error('Error saving entrada:', error);
+      console.error('Error details:', error.response?.data);
       alert('Error al guardar entrada');
     }
   };
@@ -82,10 +84,9 @@ const Entradas = () => {
     setFormData({
       producto_id: entrada.producto_id,
       cantidad: entrada.cantidad,
-      precio_unitario: entrada.precio_unitario,
+      precio_compra: entrada.precio_compra,
       proveedor: entrada.proveedor || '',
-      numero_factura: entrada.numero_factura || '',
-      observaciones: entrada.observaciones || ''
+      nota: entrada.nota || ''
     });
     setShowModal(true);
   };
@@ -107,10 +108,9 @@ const Entradas = () => {
     setFormData({
       producto_id: '',
       cantidad: '',
-      precio_unitario: '',
+      precio_compra: '',
       proveedor: '',
-      numero_factura: '',
-      observaciones: ''
+      nota: ''
     });
   };
 
@@ -123,7 +123,7 @@ const Entradas = () => {
     const producto = Array.isArray(productos) ? productos.find(p => p.id === entrada.producto_id) : null;
     const matchesSearch = producto?.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          entrada.proveedor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         entrada.numero_factura?.toLowerCase().includes(searchTerm.toLowerCase());
+                         entrada.nota?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesDate = dateFilter === '' || 
                        entrada.fecha_entrada.startsWith(dateFilter);
@@ -133,7 +133,7 @@ const Entradas = () => {
 
   const totalEntradas = Array.isArray(filteredEntradas) ? filteredEntradas.reduce((sum, entrada) => sum + parseFloat(entrada.cantidad), 0) : 0;
   const totalValor = Array.isArray(filteredEntradas) ? filteredEntradas.reduce((sum, entrada) => 
-    sum + (parseFloat(entrada.cantidad) * parseFloat(entrada.precio_unitario)), 0) : 0;
+    sum + (parseFloat(entrada.cantidad) * parseFloat(entrada.precio_compra)), 0) : 0;
 
   if (loading) {
     return <div className="loading">Cargando entradas...</div>;
@@ -227,16 +227,16 @@ const Entradas = () => {
                 <th>Fecha</th>
                 <th>Producto</th>
                 <th>Cantidad</th>
-                <th>Precio Unitario</th>
+                <th>Precio de Compra</th>
                 <th>Total</th>
                 <th>Proveedor</th>
-                <th>Factura</th>
+                <th>Nota</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredEntradas.map((entrada) => {
-                const total = parseFloat(entrada.cantidad) * parseFloat(entrada.precio_unitario);
+                const total = parseFloat(entrada.cantidad) * parseFloat(entrada.precio_compra);
                 return (
                   <tr key={entrada.id}>
                     <td>
@@ -246,12 +246,12 @@ const Entradas = () => {
                       <strong>{getProductoName(entrada.producto_id)}</strong>
                     </td>
                     <td>{parseFloat(entrada.cantidad).toFixed(2)}</td>
-                    <td>${parseFloat(entrada.precio_unitario).toFixed(2)}</td>
+                    <td>${parseFloat(entrada.precio_compra).toFixed(2)}</td>
                     <td>
                       <strong>${total.toFixed(2)}</strong>
                     </td>
                     <td>{entrada.proveedor || '-'}</td>
-                    <td>{entrada.numero_factura || '-'}</td>
+                    <td>{entrada.nota || '-'}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '5px' }}>
                         <button
@@ -344,12 +344,12 @@ const Entradas = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Precio Unitario *</label>
+                  <label className="form-label">Precio de Compra *</label>
                   <input
                     type="number"
                     className="form-input"
-                    value={formData.precio_unitario}
-                    onChange={(e) => setFormData({...formData, precio_unitario: e.target.value})}
+                    value={formData.precio_compra}
+                    onChange={(e) => setFormData({...formData, precio_compra: e.target.value})}
                     step="0.01"
                     min="0"
                     required
@@ -357,9 +357,9 @@ const Entradas = () => {
                 </div>
               </div>
 
-              {formData.cantidad && formData.precio_unitario && (
+              {formData.cantidad && formData.precio_compra && (
                 <div className="alert alert-success">
-                  <strong>Total: ${(parseFloat(formData.cantidad || 0) * parseFloat(formData.precio_unitario || 0)).toFixed(2)}</strong>
+                  <strong>Total: ${(parseFloat(formData.cantidad || 0) * parseFloat(formData.precio_compra || 0)).toFixed(2)}</strong>
                 </div>
               )}
 
@@ -375,23 +375,12 @@ const Entradas = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Número de Factura</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={formData.numero_factura}
-                  onChange={(e) => setFormData({...formData, numero_factura: e.target.value})}
-                  placeholder="Número de factura o documento"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Observaciones</label>
+                <label className="form-label">Nota</label>
                 <textarea
                   className="form-input"
-                  value={formData.observaciones}
-                  onChange={(e) => setFormData({...formData, observaciones: e.target.value})}
-                  placeholder="Observaciones adicionales..."
+                  value={formData.nota}
+                  onChange={(e) => setFormData({...formData, nota: e.target.value})}
+                  placeholder="Notas adicionales..."
                   rows="3"
                   style={{ resize: 'vertical' }}
                 />
