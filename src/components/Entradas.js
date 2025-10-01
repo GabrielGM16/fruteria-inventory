@@ -24,16 +24,29 @@ const Entradas = () => {
 
   const loadData = async () => {
     try {
+      console.log('Entradas: Iniciando carga de datos...');
       setLoading(true);
       const [entradasResponse, productosResponse] = await Promise.all([
         entradasService.getAll(),
         productosService.getAll()
       ]);
-      // Asegurar que los datos sean arrays
-      setEntradas(Array.isArray(entradasResponse.data) ? entradasResponse.data : []);
-      setProductos(Array.isArray(productosResponse.data) ? productosResponse.data : []);
+      
+      console.log('Entradas: Respuesta entradas:', entradasResponse);
+      console.log('Entradas: Respuesta productos:', productosResponse);
+      
+      // Corregir acceso a los datos - usar response.data.data
+      const entradasData = Array.isArray(entradasResponse.data?.data) ? entradasResponse.data.data : [];
+      const productosData = Array.isArray(productosResponse.data?.data) ? productosResponse.data.data : [];
+      
+      console.log('Entradas: Datos entradas procesados:', entradasData);
+      console.log('Entradas: Datos productos procesados:', productosData);
+      
+      setEntradas(entradasData);
+      setProductos(productosData);
+      
+      console.log('Entradas: Datos cargados exitosamente');
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Entradas: Error cargando datos:', error);
       alert('Error al cargar datos');
       // En caso de error, asegurar que sean arrays vacíos
       setEntradas([]);
