@@ -76,6 +76,10 @@ export const mermasService = {
 export const estadisticasService = {
   getVentas: (params) => api.get('/estadisticas/ventas', { params }),
   getProductos: () => api.get('/estadisticas/productos'),
+  getDashboard: () => api.get('/estadisticas/dashboard'),
+  getResumen: (fechaInicio, fechaFin) => api.get('/estadisticas/resumen', { 
+    params: { fecha_inicio: fechaInicio, fecha_fin: fechaFin } 
+  }),
   getReportesPDF: (tipo) => api.get(`/reportes/pdf?tipo=${tipo}`, { 
     responseType: 'blob' 
   }),

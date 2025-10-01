@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ventasService, productosService } from '../services/api';
+import { estadisticasService, productosService } from '../services/api';
 
 const Estadisticas = () => {
   const [loading, setLoading] = useState(true);
@@ -50,14 +50,66 @@ const Estadisticas = () => {
     try {
       setLoading(true);
       
-      // Llamar al endpoint de estadísticas del backend
-      const response = await ventasService.getEstadisticas(fechaInicio, fechaFin);
+      // Llamar a múltiples endpoints del backend para obtener estadísticas completas
+      const [dashboardResponse, resumenResponse, ventasResponse, productosResponse] = await Promise.all([
+        estadisticasService.getDashboard(),
+        estadisticasService.getResumen(fechaInicio, fechaFin),
+        estadisticasService.getVentas({ fecha_inicio: fechaInicio, fecha_fin: fechaFin }),
+        estadisticasService.getProductos()
+      ]);
       
-      if (response.data) {
-        setStats(response.data);
-      }
+      // Combinar datos de todas las respuestas
+      const dashboardData = dashboardResponse.data?.data || {};
+      const resumenData = resumenResponse.data?.data || {};
+      const ventasData = ventasResponse.data?.data || {};
+      const productosData = productosResponse.data?.data || {};
+      
+      setStats({
+        // Resumen general del dashboard
+        ventasTotal: dashboardData.ventasTotal || 0,
+        ingresosTotal: dashboardData.ingresosTotal || 0,
+        productosTotal: dashboardData.productosTotal || 0,
+        gananciaTotal: dashboardData.gananciaTotal || 0,
+        
+        // Datos de ventas por período
+        ventasDiarias: ventasData.ventasDiarias || [],
+        
+        // Top productos
+        topProductos: productosData.topProductos || [],
+        
+        // Métodos de pago
+        metodosPago: ventasData.metodosPago || {
+          efectivo: 0,
+          tarjeta: 0,
+          mixto: 0
+        },
+        
+        // Productos bajo stock
+        productosStockBajo: productosData.productosStockBajo || [],
+        
+        // Mermas
+        totalMermas: dashboardData.totalMermas || 0,
+        valorMermas: dashboardData.valorMermas || 0
+      });
     } catch (error) {
       console.error('Error loading estadisticas:', error);
+      // Mantener estructura de datos vacía en caso de error
+      setStats({
+        ventasTotal: 0,
+        ingresosTotal: 0,
+        productosTotal: 0,
+        gananciaTotal: 0,
+        ventasDiarias: [],
+        topProductos: [],
+        metodosPago: {
+          efectivo: 0,
+          tarjeta: 0,
+          mixto: 0
+        },
+        productosStockBajo: [],
+        totalMermas: 0,
+        valorMermas: 0
+      });
     } finally {
       setLoading(false);
     }

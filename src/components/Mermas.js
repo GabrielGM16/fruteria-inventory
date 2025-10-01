@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { productosService } from '../services/api';
+import { productosService, mermasService } from '../services/api';
 
 const Mermas = () => {
   const [productos, setProductos] = useState([]);
+  const [mermas, setMermas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMermas, setLoadingMermas] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('auditoria'); // auditoria, analisis, historial
   const [showModal, setShowModal] = useState(false);
+  const [editingMerma, setEditingMerma] = useState(null);
   
   // Estado para auditoría
   const [conteoFisico, setConteoFisico] = useState({});
@@ -29,17 +33,24 @@ const Mermas = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (activeTab === 'historial') {
+      loadMermas();
+    }
+  }, [activeTab]);
+
   const loadData = async () => {
     try {
       setLoading(true);
       const productosRes = await productosService.getAll();
-      const productosData = Array.isArray(productosRes.data) ? productosRes.data : [];
+      const productosData = Array.isArray(productosRes.data?.data) ? productosRes.data.data : 
+                           Array.isArray(productosRes.data) ? productosRes.data : [];
       setProductos(productosData);
       
       // Inicializar conteo físico con cantidades del sistema
       const conteoInicial = {};
       productosData.forEach(p => {
-        conteoInicial[p.id] = p.stock || 0;
+        conteoInicial[p.id] = p.stock_actual || p.stock || 0;
       });
       setConteoFisico(conteoInicial);
     } catch (error) {
@@ -47,6 +58,21 @@ const Mermas = () => {
       setProductos([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMermas = async () => {
+    try {
+      setLoadingMermas(true);
+      const mermasRes = await mermasService.getAll();
+      const mermasData = Array.isArray(mermasRes.data?.data) ? mermasRes.data.data : 
+                        Array.isArray(mermasRes.data) ? mermasRes.data : [];
+      setMermas(mermasData);
+    } catch (error) {
+      console.error('Error loading mermas:', error);
+      setMermas([]);
+    } finally {
+      setLoadingMermas(false);
     }
   };
 
@@ -59,10 +85,11 @@ const Mermas = () => {
 
   const calcularDiferencias = () => {
     const difs = productos.map(producto => {
-      const stockSistema = producto.stock || 0;
-      const stockFisico = conteoFisico[producto.id] || 0;
+      const stockSistema = parseFloat(producto.stock_actual || producto.stock || 0);
+      const stockFisico = parseFloat(conteoFisico[producto.id] || 0);
+      const precioVenta = parseFloat(producto.precio_venta || 0);
       const diferencia = stockFisico - stockSistema;
-      const valorDiferencia = diferencia * (producto.precio_venta || 0);
+      const valorDiferencia = diferencia * precioVenta;
       
       return {
         id: producto.id,
@@ -71,7 +98,7 @@ const Mermas = () => {
         stockFisico,
         diferencia,
         valorDiferencia,
-        precioVenta: producto.precio_venta || 0
+        precioVenta
       };
     }).filter(d => d.diferencia !== 0);
     
@@ -83,7 +110,7 @@ const Mermas = () => {
     let ventasEsperadas = 0;
     
     productos.forEach(producto => {
-      const stockActual = producto.stock || 0;
+      const stockActual = producto.stock_actual || producto.stock || 0;
       const stockInicial = producto.stock_inicial || 0; // Necesitarías guardar esto
       const compras = producto.compras_periodo || 0; // Necesitarías calcularlo
       
@@ -106,16 +133,58 @@ const Mermas = () => {
 
   const registrarMerma = async (e) => {
     e.preventDefault();
+    
+    // Validaciones
+    if (!formData.producto_id || !formData.cantidad || !formData.motivo) {
+      alert('Por favor completa todos los campos obligatorios');
+      return;
+    }
+
+    if (parseFloat(formData.cantidad) <= 0) {
+      alert('La cantidad debe ser mayor a 0');
+      return;
+    }
+
+    // Verificar stock disponible
+    const producto = productos.find(p => p.id === parseInt(formData.producto_id));
+    if (producto && parseFloat(formData.cantidad) > (producto.stock_actual || producto.stock || 0)) {
+      alert('La cantidad de merma no puede ser mayor al stock disponible');
+      return;
+    }
+
     try {
-      // Implementar llamada al API
-      // await mermasService.create(formData);
-      alert('Merma registrada exitosamente');
+      setSubmitting(true);
+      
+      const mermaData = {
+        producto_id: parseInt(formData.producto_id),
+        cantidad: parseFloat(formData.cantidad),
+        motivo: formData.motivo,
+        descripcion: formData.descripcion || ''
+      };
+
+      if (editingMerma) {
+        // Actualizar merma existente
+        await mermasService.update(editingMerma.id, mermaData);
+        alert('Merma actualizada exitosamente');
+      } else {
+        // Crear nueva merma
+        await mermasService.create(mermaData);
+        alert('Merma registrada exitosamente');
+      }
+      
       setShowModal(false);
       resetForm();
-      loadData();
+      setEditingMerma(null);
+      loadData(); // Recargar productos para actualizar stock
+      if (activeTab === 'historial') {
+        loadMermas(); // Recargar mermas si estamos en esa pestaña
+      }
     } catch (error) {
-      console.error('Error registering merma:', error);
-      alert('Error al registrar merma');
+      console.error('Error al procesar merma:', error);
+      const errorMessage = error.response?.data?.message || 'Error al procesar la merma';
+      alert(errorMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -131,6 +200,34 @@ const Mermas = () => {
     }
   };
 
+  const editarMerma = (merma) => {
+    setFormData({
+      producto_id: merma.producto_id.toString(),
+      cantidad: merma.cantidad.toString(),
+      motivo: merma.motivo,
+      descripcion: merma.descripcion || ''
+    });
+    setEditingMerma(merma);
+    setShowModal(true);
+  };
+
+  const eliminarMerma = async (id) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar esta merma?')) {
+      return;
+    }
+
+    try {
+      await mermasService.delete(id);
+      alert('Merma eliminada exitosamente');
+      loadMermas();
+      loadData(); // Recargar productos para actualizar stock
+    } catch (error) {
+      console.error('Error al eliminar merma:', error);
+      const errorMessage = error.response?.data?.message || 'Error al eliminar la merma';
+      alert(errorMessage);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       producto_id: '',
@@ -138,6 +235,7 @@ const Mermas = () => {
       motivo: '',
       descripcion: ''
     });
+    setEditingMerma(null);
   };
 
   if (loading) {
@@ -225,8 +323,8 @@ const Mermas = () => {
                 </thead>
                 <tbody>
                   {productos.map(producto => {
-                    const stockSistema = producto.stock || 0;
-                    const stockFisico = conteoFisico[producto.id] || 0;
+                    const stockSistema = parseFloat(producto.stock_actual || producto.stock || 0);
+                    const stockFisico = parseFloat(conteoFisico[producto.id] || 0);
                     const diferencia = stockFisico - stockSistema;
                     
                     return (
@@ -259,7 +357,7 @@ const Mermas = () => {
                           {diferencia !== 0 && (diferencia > 0 ? '+' : '')}{diferencia.toFixed(2)}
                         </td>
                         <td style={{ padding: '12px', textAlign: 'right' }}>
-                          ${(producto.precio_venta || 0).toFixed(2)}
+                          ${parseFloat(producto.precio_venta || 0).toFixed(2)}
                         </td>
                       </tr>
                     );
@@ -297,15 +395,15 @@ const Mermas = () => {
                     {diferencias.map(dif => (
                       <tr key={dif.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                         <td style={{ padding: '12px' }}>{dif.nombre}</td>
-                        <td style={{ padding: '12px', textAlign: 'center' }}>{dif.stockSistema.toFixed(2)}</td>
-                        <td style={{ padding: '12px', textAlign: 'center' }}>{dif.stockFisico.toFixed(2)}</td>
+                        <td style={{ padding: '12px', textAlign: 'center' }}>{parseFloat(dif.stockSistema || 0).toFixed(2)}</td>
+                        <td style={{ padding: '12px', textAlign: 'center' }}>{parseFloat(dif.stockFisico || 0).toFixed(2)}</td>
                         <td style={{ 
                           padding: '12px', 
                           textAlign: 'center',
                           color: dif.diferencia < 0 ? '#ef4444' : '#10b981',
                           fontWeight: 'bold'
                         }}>
-                          {dif.diferencia > 0 ? '+' : ''}{dif.diferencia.toFixed(2)}
+                          {dif.diferencia > 0 ? '+' : ''}{parseFloat(dif.diferencia || 0).toFixed(2)}
                         </td>
                         <td style={{ 
                           padding: '12px', 
@@ -313,7 +411,7 @@ const Mermas = () => {
                           color: dif.valorDiferencia < 0 ? '#ef4444' : '#10b981',
                           fontWeight: 'bold'
                         }}>
-                          ${dif.valorDiferencia.toFixed(2)}
+                          ${parseFloat(dif.valorDiferencia || 0).toFixed(2)}
                         </td>
                         <td style={{ padding: '12px', textAlign: 'center' }}>
                           {dif.diferencia < 0 && (
@@ -347,7 +445,7 @@ const Mermas = () => {
                         color: diferencias.reduce((sum, d) => sum + d.valorDiferencia, 0) < 0 ? '#ef4444' : '#10b981',
                         fontSize: '16px'
                       }}>
-                        ${diferencias.reduce((sum, d) => sum + d.valorDiferencia, 0).toFixed(2)}
+                        ${parseFloat(diferencias.reduce((sum, d) => sum + parseFloat(d.valorDiferencia || 0), 0)).toFixed(2)}
                       </td>
                       <td></td>
                     </tr>
@@ -402,7 +500,7 @@ const Mermas = () => {
             <div className="card" style={{ backgroundColor: '#dbeafe' }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#1e40af' }}>💵 Ventas Esperadas</h4>
               <p style={{ fontSize: '28px', fontWeight: 'bold', margin: '10px 0', color: '#1e40af' }}>
-                ${analisisFinanciero.ventasEsperadas.toFixed(2)}
+                ${parseFloat(analisisFinanciero.ventasEsperadas || 0).toFixed(2)}
               </p>
               <small style={{ color: '#64748b' }}>Basado en inventario vendido</small>
             </div>
@@ -410,7 +508,7 @@ const Mermas = () => {
             <div className="card" style={{ backgroundColor: '#d1fae5' }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#065f46' }}>💰 Efectivo en Caja</h4>
               <p style={{ fontSize: '28px', fontWeight: 'bold', margin: '10px 0', color: '#065f46' }}>
-                ${analisisFinanciero.efectivoCaja.toFixed(2)}
+                ${parseFloat(analisisFinanciero.efectivoCaja || 0).toFixed(2)}
               </p>
               <small style={{ color: '#64748b' }}>Efectivo real disponible</small>
             </div>
@@ -430,7 +528,7 @@ const Mermas = () => {
                 margin: '10px 0',
                 color: analisisFinanciero.diferencia < 0 ? '#991b1b' : '#065f46'
               }}>
-                ${analisisFinanciero.diferencia.toFixed(2)}
+                ${parseFloat(analisisFinanciero.diferencia || 0).toFixed(2)}
               </p>
               <small style={{ color: '#64748b' }}>
                 {analisisFinanciero.diferencia < 0 ? 'Faltante' : 'Excedente'}
@@ -443,13 +541,13 @@ const Mermas = () => {
             <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
               {analisisFinanciero.diferencia < -100 && (
                 <p style={{ color: '#991b1b', fontWeight: 'bold' }}>
-                  ⚠️ <strong>Alerta:</strong> Hay un faltante significativo de ${Math.abs(analisisFinanciero.diferencia).toFixed(2)}. 
+                  ⚠️ <strong>Alerta:</strong> Hay un faltante significativo de ${Math.abs(parseFloat(analisisFinanciero.diferencia || 0)).toFixed(2)}. 
                   Revisa posibles mermas no registradas, ventas sin registrar, o descuadres de caja.
                 </p>
               )}
               {analisisFinanciero.diferencia >= -100 && analisisFinanciero.diferencia < 0 && (
                 <p style={{ color: '#f59e0b' }}>
-                  ℹ️ Hay un faltante menor de ${Math.abs(analisisFinanciero.diferencia).toFixed(2)}. 
+                  ℹ️ Hay un faltante menor de ${Math.abs(parseFloat(analisisFinanciero.diferencia || 0)).toFixed(2)}. 
                   Considera revisar el registro de gastos operativos.
                 </p>
               )}
@@ -460,7 +558,7 @@ const Mermas = () => {
               )}
               {analisisFinanciero.diferencia >= 100 && (
                 <p style={{ color: '#3b82f6' }}>
-                  💡 Hay un excedente de ${analisisFinanciero.diferencia.toFixed(2)}. 
+                  💡 Hay un excedente de ${parseFloat(analisisFinanciero.diferencia || 0).toFixed(2)}. 
                   Verifica que todas las ventas estén registradas correctamente.
                 </p>
               )}
@@ -476,16 +574,152 @@ const Mermas = () => {
             <h3>📋 Historial de Mermas</h3>
             <button
               className="btn btn-primary"
-              onClick={() => setShowModal(true)}
+              onClick={() => {
+                resetForm();
+                setShowModal(true);
+              }}
             >
               ➕ Registrar Merma
             </button>
           </div>
-          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-            🚧 Funcionalidad próximamente disponible
-            <br />
-            <small>Aquí se mostrarán todas las mermas registradas</small>
-          </div>
+          
+          {loadingMermas ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              ⏳ Cargando historial de mermas...
+            </div>
+          ) : mermas.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              📝 No hay mermas registradas
+              <br />
+              <small>Las mermas registradas aparecerán aquí</small>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Fecha</th>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Producto</th>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>Cantidad</th>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Motivo</th>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Descripción</th>
+                    <th style={{ padding: '12px', textAlign: 'right' }}>Valor</th>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mermas.map(merma => {
+                    const producto = productos.find(p => p.id === merma.producto_id);
+                    const valorMerma = parseFloat(merma.cantidad || 0) * parseFloat(producto?.precio_venta || 0);
+                    const fechaMerma = new Date(merma.fecha_merma || merma.created_at).toLocaleDateString('es-ES');
+                    
+                    return (
+                      <tr key={merma.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '12px' }}>{fechaMerma}</td>
+                        <td style={{ padding: '12px' }}>
+                          {producto?.nombre || `Producto ID: ${merma.producto_id}`}
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold' }}>
+                          {parseFloat(merma.cantidad || 0).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            backgroundColor: 
+                              merma.motivo === 'vencimiento' ? '#fef3c7' :
+                              merma.motivo === 'daño' ? '#fee2e2' :
+                              merma.motivo === 'robo' ? '#fde2e7' : '#f3f4f6',
+                            color:
+                              merma.motivo === 'vencimiento' ? '#92400e' :
+                              merma.motivo === 'daño' ? '#991b1b' :
+                              merma.motivo === 'robo' ? '#be185d' : '#374151'
+                          }}>
+                            {merma.motivo === 'vencimiento' ? '📅 Vencimiento' :
+                             merma.motivo === 'daño' ? '💥 Daño' :
+                             merma.motivo === 'robo' ? '🚨 Robo' : '❓ Otro'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px', maxWidth: '200px' }}>
+                          <div style={{ 
+                            overflow: 'hidden', 
+                            textOverflow: 'ellipsis', 
+                            whiteSpace: 'nowrap',
+                            fontSize: '14px',
+                            color: '#666'
+                          }}>
+                            {merma.descripcion || 'Sin descripción'}
+                          </div>
+                        </td>
+                        <td style={{ 
+                          padding: '12px', 
+                          textAlign: 'right', 
+                          fontWeight: 'bold',
+                          color: '#ef4444'
+                        }}>
+                          -${parseFloat(valorMerma || 0).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => editarMerma(merma)}
+                              style={{
+                                padding: '5px 8px',
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                              }}
+                              title="Editar merma"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => eliminarMerma(merma.id)}
+                              style={{
+                                padding: '5px 8px',
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                              }}
+                              title="Eliminar merma"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ backgroundColor: '#fee2e2', fontWeight: 'bold' }}>
+                    <td colSpan="5" style={{ padding: '12px', textAlign: 'right' }}>
+                      Total Pérdidas:
+                    </td>
+                    <td style={{ 
+                      padding: '12px', 
+                      textAlign: 'right',
+                      color: '#ef4444',
+                      fontSize: '16px'
+                    }}>
+                      -${parseFloat(mermas.reduce((sum, merma) => {
+                        const producto = productos.find(p => p.id === merma.producto_id);
+                        return sum + (parseFloat(merma.cantidad || 0) * parseFloat(producto?.precio_venta || 0));
+                      }, 0)).toFixed(2)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -493,7 +727,7 @@ const Mermas = () => {
       {showModal && (
         <div className="modal-overlay">
           <div className="modal">
-            <h3>Registrar Nueva Merma</h3>
+            <h3>{editingMerma ? 'Editar Merma' : 'Registrar Nueva Merma'}</h3>
             <form onSubmit={registrarMerma}>
               <div className="form-group">
                 <label>Producto:</label>
@@ -506,7 +740,7 @@ const Mermas = () => {
                   <option value="">Seleccionar producto</option>
                   {productos.map(producto => (
                     <option key={producto.id} value={producto.id}>
-                      {producto.nombre} (Stock: {producto.stock})
+                      {producto.nombre} (Stock: {producto.stock_actual || producto.stock || 0})
                     </option>
                   ))}
                 </select>
@@ -533,8 +767,8 @@ const Mermas = () => {
                   required
                 >
                   <option value="">Seleccionar motivo</option>
-                  <option value="vencido">Vencimiento</option>
-                  <option value="dañado">Daño físico</option>
+                  <option value="vencimiento">Vencimiento</option>
+                  <option value="daño">Daño físico</option>
                   <option value="robo">Robo/Pérdida</option>
                   <option value="otro">Otro</option>
                 </select>
@@ -559,11 +793,16 @@ const Mermas = () => {
                     resetForm();
                   }}
                   style={{ backgroundColor: '#e2e8f0', color: '#4a5568' }}
+                  disabled={submitting}
                 >
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  Registrar Merma
+                <button 
+                  type="submit" 
+                  className="btn btn-primary"
+                  disabled={submitting}
+                >
+                  {submitting ? '⏳ Procesando...' : (editingMerma ? 'Actualizar Merma' : 'Registrar Merma')}
                 </button>
               </div>
             </form>
