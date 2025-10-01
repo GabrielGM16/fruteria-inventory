@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { productosService, ventasService } from '../services/api';
+import { productosService, ventasService, inventarioService } from '../services/api';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -22,37 +22,45 @@ const Dashboard = () => {
       // Cargar estadísticas básicas
       const [productosRes, alertasRes, ventasRes] = await Promise.all([
         productosService.getAll(),
-        productosService.getAlertas(),
+        inventarioService.getAlertas(),
         ventasService.getAll()
       ]);
 
-      const productos = productosRes.data;
-      const alertasData = alertasRes.data;
-      const ventas = ventasRes.data;
+      const productos = Array.isArray(productosRes.data) ? productosRes.data : [];
+      const alertasData = Array.isArray(alertasRes.data) ? alertasRes.data : [];
+      const ventas = Array.isArray(ventasRes.data) ? ventasRes.data : [];
 
       // Calcular estadísticas
       const hoy = new Date().toDateString();
-      const ventasHoy = ventas.filter(venta => 
+      const ventasHoy = Array.isArray(ventas) ? ventas.filter(venta => 
         new Date(venta.fecha_venta).toDateString() === hoy
-      );
+      ) : [];
       
       const mesActual = new Date().getMonth();
       const añoActual = new Date().getFullYear();
-      const ventasMes = ventas.filter(venta => {
+      const ventasMes = Array.isArray(ventas) ? ventas.filter(venta => {
         const fechaVenta = new Date(venta.fecha_venta);
         return fechaVenta.getMonth() === mesActual && fechaVenta.getFullYear() === añoActual;
-      });
+      }) : [];
 
       setStats({
-        totalProductos: productos.length,
-        ventasHoy: ventasHoy.reduce((sum, venta) => sum + parseFloat(venta.total), 0),
-        stockBajo: productos.filter(p => p.stock_actual <= p.stock_minimo).length,
-        ventasMes: ventasMes.reduce((sum, venta) => sum + parseFloat(venta.total), 0)
+        totalProductos: Array.isArray(productos) ? productos.length : 0,
+        ventasHoy: Array.isArray(ventasHoy) ? ventasHoy.reduce((sum, venta) => sum + parseFloat(venta.total), 0) : 0,
+        stockBajo: Array.isArray(productos) ? productos.filter(p => p.stock_actual <= p.stock_minimo).length : 0,
+        ventasMes: Array.isArray(ventasMes) ? ventasMes.reduce((sum, venta) => sum + parseFloat(venta.total), 0) : 0
       });
 
-      setAlertas(alertasData);
+      setAlertas(Array.isArray(alertasData) ? alertasData : []);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      // Set default values in case of error
+      setStats({
+        totalProductos: 0,
+        ventasHoy: 0,
+        stockBajo: 0,
+        ventasMes: 0
+      });
+      setAlertas([]);
     } finally {
       setLoading(false);
     }

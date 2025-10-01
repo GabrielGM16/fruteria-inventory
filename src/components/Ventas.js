@@ -26,11 +26,19 @@ const Ventas = () => {
         productosService.getAll(),
         ventasService.getAll()
       ]);
-      setProductos(productosResponse.data.filter(p => p.activo && p.stock_actual > 0));
-      setVentas(ventasResponse.data);
+      
+      // Ensure data is an array before using array methods
+      const productosData = Array.isArray(productosResponse.data) ? productosResponse.data : [];
+      const ventasData = Array.isArray(ventasResponse.data) ? ventasResponse.data : [];
+      
+      setProductos(productosData.filter(p => p.activo && p.stock_actual > 0));
+      setVentas(ventasData);
     } catch (error) {
       console.error('Error loading data:', error);
       alert('Error al cargar datos');
+      // Set default empty arrays on error
+      setProductos([]);
+      setVentas([]);
     } finally {
       setLoading(false);
     }
