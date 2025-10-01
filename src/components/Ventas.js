@@ -14,6 +14,11 @@ const Ventas = () => {
     telefono: '',
     email: ''
   });
+  
+  // Estados para el modal de cantidad
+  const [showCantidadModal, setShowCantidadModal] = useState(false);
+  const [productoSeleccionado, setProductoSeleccionado] = useState(null);
+  const [cantidadIngresada, setCantidadIngresada] = useState('');
 
   useEffect(() => {
     loadData();
@@ -44,29 +49,66 @@ const Ventas = () => {
     }
   };
 
-  const agregarAlCarrito = (producto) => {
-    const existingItem = carrito.find(item => item.id === producto.id);
+  const abrirModalCantidad = (producto) => {
+    setProductoSeleccionado(producto);
+    setCantidadIngresada('');
+    setShowCantidadModal(true);
+  };
+
+  const cerrarModalCantidad = () => {
+    setShowCantidadModal(false);
+    setProductoSeleccionado(null);
+    setCantidadIngresada('');
+  };
+
+  const calcularPrecioTotal = () => {
+    if (!productoSeleccionado || !cantidadIngresada) return 0;
+    return parseFloat(cantidadIngresada) * parseFloat(productoSeleccionado.precio_venta);
+  };
+
+  const confirmarAgregarAlCarrito = () => {
+    if (!productoSeleccionado || !cantidadIngresada || parseFloat(cantidadIngresada) <= 0) {
+      alert('Por favor ingrese una cantidad válida');
+      return;
+    }
+
+    const cantidad = parseFloat(cantidadIngresada);
+    
+    if (cantidad > productoSeleccionado.stock_actual) {
+      alert(`No hay suficiente stock disponible. Stock actual: ${productoSeleccionado.stock_actual} ${productoSeleccionado.unidad_medida}`);
+      return;
+    }
+
+    const existingItem = carrito.find(item => item.id === productoSeleccionado.id);
     
     if (existingItem) {
-      if (existingItem.cantidad < producto.stock_actual) {
-        setCarrito(carrito.map(item =>
-          item.id === producto.id
-            ? { ...item, cantidad: item.cantidad + 1 }
-            : item
-        ));
-      } else {
-        alert('No hay suficiente stock disponible');
+      const nuevaCantidad = existingItem.cantidad + cantidad;
+      if (nuevaCantidad > productoSeleccionado.stock_actual) {
+        alert(`No hay suficiente stock disponible. Ya tiene ${existingItem.cantidad} ${productoSeleccionado.unidad_medida} en el carrito.`);
+        return;
       }
+      
+      setCarrito(carrito.map(item =>
+        item.id === productoSeleccionado.id
+          ? { ...item, cantidad: nuevaCantidad }
+          : item
+      ));
     } else {
       setCarrito([...carrito, {
-        id: producto.id,
-        nombre: producto.nombre,
-        precio: parseFloat(producto.precio_venta),
-        cantidad: 1,
-        stock_disponible: producto.stock_actual,
-        unidad_medida: producto.unidad_medida
+        id: productoSeleccionado.id,
+        nombre: productoSeleccionado.nombre,
+        precio: parseFloat(productoSeleccionado.precio_venta),
+        cantidad: cantidad,
+        stock_disponible: productoSeleccionado.stock_actual,
+        unidad_medida: productoSeleccionado.unidad_medida
       }]);
     }
+
+    cerrarModalCantidad();
+  };
+
+  const agregarAlCarrito = (producto) => {
+    abrirModalCantidad(producto);
   };
 
   const actualizarCantidad = (id, nuevaCantidad) => {
@@ -401,6 +443,143 @@ const Ventas = () => {
               No hay ventas registradas
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal para ingresar cantidad */}
+      {showCantidadModal && productoSeleccionado && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: '30px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#2d3748' }}>
+              Agregar al Carrito
+            </h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#4a5568' }}>
+                {productoSeleccionado.nombre}
+              </h4>
+              <p style={{ margin: '0 0 5px 0', color: '#718096' }}>
+                Categoría: {productoSeleccionado.categoria}
+              </p>
+              <p style={{ margin: '0 0 5px 0', fontWeight: 'bold', color: '#3182ce' }}>
+                Precio: ${parseFloat(productoSeleccionado.precio_venta).toFixed(2)} / {productoSeleccionado.unidad_medida}
+              </p>
+              <p style={{ margin: 0, color: '#718096' }}>
+                Stock disponible: {productoSeleccionado.stock_actual} {productoSeleccionado.unidad_medida}
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '8px', 
+                fontWeight: 'bold',
+                color: '#4a5568'
+              }}>
+                Cantidad ({productoSeleccionado.unidad_medida}):
+              </label>
+              <input
+                type="number"
+                value={cantidadIngresada}
+                onChange={(e) => setCantidadIngresada(e.target.value)}
+                placeholder={`Ingrese cantidad en ${productoSeleccionado.unidad_medida}`}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  boxSizing: 'border-box'
+                }}
+                min="0"
+                step="0.01"
+                max={productoSeleccionado.stock_actual}
+              />
+            </div>
+
+            {cantidadIngresada && parseFloat(cantidadIngresada) > 0 && (
+              <div style={{
+                backgroundColor: '#f7fafc',
+                padding: '15px',
+                borderRadius: '8px',
+                marginBottom: '20px',
+                border: '1px solid #e2e8f0'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span>Cantidad:</span>
+                  <span>{cantidadIngresada} {productoSeleccionado.unidad_medida}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span>Precio por {productoSeleccionado.unidad_medida}:</span>
+                  <span>${parseFloat(productoSeleccionado.precio_venta).toFixed(2)}</span>
+                </div>
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  fontWeight: 'bold',
+                  fontSize: '18px',
+                  color: '#3182ce',
+                  borderTop: '1px solid #e2e8f0',
+                  paddingTop: '8px'
+                }}>
+                  <span>Total a pagar:</span>
+                  <span>${calcularPrecioTotal().toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={cerrarModalCantidad}
+                style={{
+                  padding: '12px 20px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  backgroundColor: 'white',
+                  color: '#4a5568',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarAgregarAlCarrito}
+                disabled={!cantidadIngresada || parseFloat(cantidadIngresada) <= 0}
+                style={{
+                  padding: '12px 20px',
+                  border: 'none',
+                  borderRadius: '8px',
+                  backgroundColor: cantidadIngresada && parseFloat(cantidadIngresada) > 0 ? '#3182ce' : '#a0aec0',
+                  color: 'white',
+                  cursor: cantidadIngresada && parseFloat(cantidadIngresada) > 0 ? 'pointer' : 'not-allowed',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                🛒 Agregar al Carrito
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
