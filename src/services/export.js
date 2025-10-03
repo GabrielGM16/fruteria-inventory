@@ -4,6 +4,20 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 /**
+ * Convierte un valor a número de forma segura
+ * @param {any} value - Valor a convertir
+ * @param {number} defaultValue - Valor por defecto si la conversión falla
+ * @returns {number} - Número válido
+ */
+const toSafeNumber = (value, defaultValue = 0) => {
+  if (value === null || value === undefined || value === '') {
+    return defaultValue;
+  }
+  const num = parseFloat(value);
+  return isNaN(num) ? defaultValue : num;
+};
+
+/**
  * Exportar datos a Excel
  * @param {Array} data - Datos a exportar
  * @param {String} filename - Nombre del archivo
@@ -226,20 +240,27 @@ export const exportInventarioToPDF = (productos, stats = {}) => {
       yPos += 6;
       doc.text(`• Productos con stock bajo: ${stats.stockBajo || 0}`, 20, yPos);
       yPos += 6;
-      doc.text(`• Valor total inventario: $${(stats.valorTotal || 0).toFixed(2)}`, 20, yPos);
+      doc.text(`• Valor total inventario: $${toSafeNumber(stats.valorTotal).toFixed(2)}`, 20, yPos);
       yPos += 10;
     }
     
     // Tabla de productos
     const headers = ['Producto', 'Categoría', 'Stock', 'Mínimo', 'Precio', 'Valor'];
-    const rows = productos.map(p => [
-      p.nombre,
-      p.categoria || '-',
-      `${p.stock_actual || 0} ${p.unidad_medida || ''}`,
-      `${p.stock_minimo || 0}`,
-      `$${(p.precio_venta || 0).toFixed(2)}`,
-      `$${((p.stock_actual || 0) * (p.precio_venta || 0)).toFixed(2)}`
-    ]);
+    const rows = productos.map(p => {
+      const stockActual = toSafeNumber(p.stock_actual);
+      const stockMinimo = toSafeNumber(p.stock_minimo);
+      const precioVenta = toSafeNumber(p.precio_venta);
+      const valorTotal = stockActual * precioVenta;
+      
+      return [
+        p.nombre,
+        p.categoria || '-',
+        `${stockActual} ${p.unidad_medida || ''}`,
+        `${stockMinimo}`,
+        `$${precioVenta.toFixed(2)}`,
+        `$${valorTotal.toFixed(2)}`
+      ];
+    });
     
     doc.autoTable({
       head: [headers],
@@ -333,11 +354,11 @@ export const exportVentasToPDF = (ventas, stats = {}, periodo = {}) => {
     doc.setFontSize(10);
     doc.text(`• Total de ventas: ${stats.totalVentas || 0}`, 20, yPos);
     yPos += 6;
-    doc.text(`• Ingresos totales: $${(stats.ingresosTotal || 0).toFixed(2)}`, 20, yPos);
+    doc.text(`• Ingresos totales: $${toSafeNumber(stats.ingresosTotal).toFixed(2)}`, 20, yPos);
     yPos += 6;
-    doc.text(`• Ticket promedio: $${(stats.ticketPromedio || 0).toFixed(2)}`, 20, yPos);
+    doc.text(`• Ticket promedio: $${toSafeNumber(stats.ticketPromedio).toFixed(2)}`, 20, yPos);
     yPos += 6;
-    doc.text(`• Ganancia total: $${(stats.gananciaTotal || 0).toFixed(2)}`, 20, yPos);
+    doc.text(`• Ganancia total: $${toSafeNumber(stats.gananciaTotal).toFixed(2)}`, 20, yPos);
     yPos += 10;
     
     // Tabla de ventas
@@ -346,7 +367,7 @@ export const exportVentasToPDF = (ventas, stats = {}, periodo = {}) => {
       new Date(v.fecha_venta).toLocaleDateString('es-MX'),
       v.cliente_nombre || 'Cliente General',
       v.metodo_pago || '-',
-      `$${(v.total || 0).toFixed(2)}`
+      `$${toSafeNumber(v.total).toFixed(2)}`
     ]);
     
     doc.autoTable({
@@ -369,7 +390,7 @@ export const exportVentasToPDF = (ventas, stats = {}, periodo = {}) => {
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
     doc.text(
-      `TOTAL: $${(stats.ingresosTotal || 0).toFixed(2)}`,
+      `TOTAL: $${toSafeNumber(stats.ingresosTotal).toFixed(2)}`,
       pageWidth - 14,
       finalY,
       { align: 'right' }
@@ -403,17 +424,25 @@ export const exportVentasToPDF = (ventas, stats = {}, periodo = {}) => {
  * @param {Array} productos - Lista de productos
  */
 export const formatProductosForExport = (productos) => {
-  return productos.map(p => ({
-    'Nombre': p.nombre,
-    'Categoría': p.categoria || '-',
-    'Stock Actual': p.stock_actual || 0,
-    'Stock Mínimo': p.stock_minimo || 0,
-    'Unidad': p.unidad_medida || '-',
-    'Precio Compra': `$${(p.precio_compra || 0).toFixed(2)}`,
-    'Precio Venta': `$${(p.precio_venta || 0).toFixed(2)}`,
-    'Valor Total': `$${((p.stock_actual || 0) * (p.precio_venta || 0)).toFixed(2)}`,
-    'Estado': p.activo ? 'Activo' : 'Inactivo'
-  }));
+  return productos.map(p => {
+    const stockActual = toSafeNumber(p.stock_actual);
+    const stockMinimo = toSafeNumber(p.stock_minimo);
+    const precioCompra = toSafeNumber(p.precio_compra);
+    const precioVenta = toSafeNumber(p.precio_venta);
+    const valorTotal = stockActual * precioVenta;
+    
+    return {
+      'Nombre': p.nombre,
+      'Categoría': p.categoria || '-',
+      'Stock Actual': stockActual,
+      'Stock Mínimo': stockMinimo,
+      'Unidad': p.unidad_medida || '-',
+      'Precio Compra': `$${precioCompra.toFixed(2)}`,
+      'Precio Venta': `$${precioVenta.toFixed(2)}`,
+      'Valor Total': `$${valorTotal.toFixed(2)}`,
+      'Estado': p.activo ? 'Activo' : 'Inactivo'
+    };
+  });
 };
 
 /**
@@ -421,14 +450,18 @@ export const formatProductosForExport = (productos) => {
  * @param {Array} ventas - Lista de ventas
  */
 export const formatVentasForExport = (ventas) => {
-  return ventas.map(v => ({
-    'Fecha': new Date(v.fecha_venta).toLocaleDateString('es-MX'),
-    'Hora': new Date(v.fecha_venta).toLocaleTimeString('es-MX'),
-    'Cliente': v.cliente_nombre || 'Cliente General',
-    'Teléfono': v.cliente_telefono || '-',
-    'Método de Pago': v.metodo_pago || '-',
-    'Total': `$${(v.total || 0).toFixed(2)}`
-  }));
+  return ventas.map(v => {
+    const total = toSafeNumber(v.total);
+    
+    return {
+      'Fecha': new Date(v.fecha_venta).toLocaleDateString('es-MX'),
+      'Hora': new Date(v.fecha_venta).toLocaleTimeString('es-MX'),
+      'Cliente': v.cliente_nombre || 'Cliente General',
+      'Teléfono': v.cliente_telefono || '-',
+      'Método de Pago': v.metodo_pago || '-',
+      'Total': `$${total.toFixed(2)}`
+    };
+  });
 };
 
 /**
@@ -439,12 +472,16 @@ export const formatVentasForExport = (ventas) => {
 export const formatEntradasForExport = (entradas, productos) => {
   return entradas.map(e => {
     const producto = productos.find(p => p.id === e.producto_id);
+    const cantidad = toSafeNumber(e.cantidad);
+    const precioCompra = toSafeNumber(e.precio_compra);
+    const total = cantidad * precioCompra;
+    
     return {
       'Fecha': new Date(e.fecha_entrada).toLocaleDateString('es-MX'),
       'Producto': producto?.nombre || '-',
-      'Cantidad': e.cantidad,
-      'Precio Compra': `$${(e.precio_compra || 0).toFixed(2)}`,
-      'Total': `$${((e.cantidad || 0) * (e.precio_compra || 0)).toFixed(2)}`,
+      'Cantidad': cantidad,
+      'Precio Compra': `$${precioCompra.toFixed(2)}`,
+      'Total': `$${total.toFixed(2)}`,
       'Proveedor': e.proveedor || '-',
       'Nota': e.nota || '-'
     };
@@ -459,11 +496,14 @@ export const formatEntradasForExport = (entradas, productos) => {
 export const formatMermasForExport = (mermas, productos) => {
   return mermas.map(m => {
     const producto = productos.find(p => p.id === m.producto_id);
-    const valor = (m.cantidad || 0) * (producto?.precio_venta || 0);
+    const cantidad = toSafeNumber(m.cantidad);
+    const precioVenta = toSafeNumber(producto?.precio_venta);
+    const valor = cantidad * precioVenta;
+    
     return {
       'Fecha': new Date(m.fecha_merma || m.created_at).toLocaleDateString('es-MX'),
       'Producto': producto?.nombre || '-',
-      'Cantidad': m.cantidad,
+      'Cantidad': cantidad,
       'Motivo': m.motivo,
       'Valor Pérdida': `$${valor.toFixed(2)}`,
       'Descripción': m.descripcion || '-'
@@ -488,7 +528,7 @@ export const formatProveedoresForExport = (proveedores) => {
   }));
 };
 
-export default {
+const exportService = {
   exportToExcel,
   exportToCSV,
   exportToPDF,
@@ -500,3 +540,5 @@ export default {
   formatMermasForExport,
   formatProveedoresForExport
 };
+
+export default exportService;
