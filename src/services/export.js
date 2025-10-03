@@ -1,0 +1,502 @@
+// src/services/export.js
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
+/**
+ * Exportar datos a Excel
+ * @param {Array} data - Datos a exportar
+ * @param {String} filename - Nombre del archivo
+ * @param {String} sheetName - Nombre de la hoja
+ */
+export const exportToExcel = (data, filename = 'datos', sheetName = 'Hoja1') => {
+  try {
+    // Crear un nuevo libro de trabajo
+    const workbook = XLSX.utils.book_new();
+    
+    // Convertir datos a hoja de trabajo
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    
+    // Ajustar ancho de columnas automáticamente
+    const maxWidth = 50;
+    const columnWidths = [];
+    
+    // Calcular ancho de columnas basado en el contenido
+    if (data.length > 0) {
+      Object.keys(data[0]).forEach((key, index) => {
+        const maxLength = Math.max(
+          key.length,
+          ...data.map(row => 
+            row[key] ? String(row[key]).length : 0
+          )
+        );
+        columnWidths[index] = { wch: Math.min(maxLength + 2, maxWidth) };
+      });
+      worksheet['!cols'] = columnWidths;
+    }
+    
+    // Agregar la hoja al libro
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    
+    // Generar archivo y descargarlo
+    XLSX.writeFile(workbook, `${filename}.xlsx`);
+    
+    return { success: true, message: 'Archivo Excel exportado exitosamente' };
+  } catch (error) {
+    console.error('Error exporting to Excel:', error);
+    return { success: false, message: 'Error al exportar a Excel', error };
+  }
+};
+
+/**
+ * Exportar datos a CSV
+ * @param {Array} data - Datos a exportar
+ * @param {String} filename - Nombre del archivo
+ */
+export const exportToCSV = (data, filename = 'datos') => {
+  try {
+    if (!data || data.length === 0) {
+      throw new Error('No hay datos para exportar');
+    }
+    
+    // Obtener encabezados
+    const headers = Object.keys(data[0]);
+    
+    // Crear contenido CSV
+    let csvContent = headers.join(',') + '\n';
+    
+    // Agregar filas
+    data.forEach(row => {
+      const values = headers.map(header => {
+        const value = row[header];
+        // Escapar comillas y agregar comillas si contiene comas
+        if (value === null || value === undefined) return '';
+        const stringValue = String(value);
+        if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+          return `"${stringValue.replace(/"/g, '""')}"`;
+        }
+        return stringValue;
+      });
+      csvContent += values.join(',') + '\n';
+    });
+    
+    // Crear blob y descargar
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    return { success: true, message: 'Archivo CSV exportado exitosamente' };
+  } catch (error) {
+    console.error('Error exporting to CSV:', error);
+    return { success: false, message: 'Error al exportar a CSV', error };
+  }
+};
+
+/**
+ * Exportar datos a PDF (tabla simple)
+ * @param {Array} data - Datos a exportar
+ * @param {String} filename - Nombre del archivo
+ * @param {String} title - Título del documento
+ * @param {Object} options - Opciones adicionales
+ */
+export const exportToPDF = (data, filename = 'reporte', title = 'Reporte', options = {}) => {
+  try {
+    if (!data || data.length === 0) {
+      throw new Error('No hay datos para exportar');
+    }
+    
+    // Crear documento PDF
+    const doc = new jsPDF(options.orientation || 'portrait');
+    
+    // Configuración
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Encabezado
+    doc.setFontSize(18);
+    doc.setFont(undefined, 'bold');
+    doc.text(title, pageWidth / 2, 20, { align: 'center' });
+    
+    // Fecha
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    const fecha = new Date().toLocaleDateString('es-MX', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    doc.text(`Fecha: ${fecha}`, 14, 30);
+    
+    // Preparar datos para la tabla
+    const headers = Object.keys(data[0]);
+    const rows = data.map(row => headers.map(header => {
+      const value = row[header];
+      if (value === null || value === undefined) return '';
+      return String(value);
+    }));
+    
+    // Agregar tabla
+    doc.autoTable({
+      head: [headers],
+      body: rows,
+      startY: 35,
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+      },
+      headStyles: {
+        fillColor: [102, 126, 234],
+        textColor: 255,
+        fontStyle: 'bold',
+      },
+      alternateRowStyles: {
+        fillColor: [245, 247, 250],
+      },
+      margin: { top: 35, left: 14, right: 14 },
+    });
+    
+    // Pie de página con número de página
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.text(
+        `Página ${i} de ${pageCount}`,
+        pageWidth / 2,
+        pageHeight - 10,
+        { align: 'center' }
+      );
+    }
+    
+    // Guardar documento
+    doc.save(`${filename}.pdf`);
+    
+    return { success: true, message: 'Archivo PDF exportado exitosamente' };
+  } catch (error) {
+    console.error('Error exporting to PDF:', error);
+    return { success: false, message: 'Error al exportar a PDF', error };
+  }
+};
+
+/**
+ * Exportar reporte de inventario a PDF
+ * @param {Array} productos - Lista de productos
+ * @param {Object} stats - Estadísticas
+ */
+export const exportInventarioToPDF = (productos, stats = {}) => {
+  try {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Encabezado
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('📦 REPORTE DE INVENTARIO', pageWidth / 2, 20, { align: 'center' });
+    
+    // Fecha
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    const fecha = new Date().toLocaleDateString('es-MX', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    doc.text(`Generado: ${fecha}`, 14, 30);
+    
+    // Estadísticas
+    let yPos = 40;
+    if (stats.totalProductos !== undefined) {
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'bold');
+      doc.text('Resumen:', 14, yPos);
+      yPos += 7;
+      
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(10);
+      doc.text(`• Total de productos: ${stats.totalProductos || 0}`, 20, yPos);
+      yPos += 6;
+      doc.text(`• Productos con stock bajo: ${stats.stockBajo || 0}`, 20, yPos);
+      yPos += 6;
+      doc.text(`• Valor total inventario: $${(stats.valorTotal || 0).toFixed(2)}`, 20, yPos);
+      yPos += 10;
+    }
+    
+    // Tabla de productos
+    const headers = ['Producto', 'Categoría', 'Stock', 'Mínimo', 'Precio', 'Valor'];
+    const rows = productos.map(p => [
+      p.nombre,
+      p.categoria || '-',
+      `${p.stock_actual || 0} ${p.unidad_medida || ''}`,
+      `${p.stock_minimo || 0}`,
+      `$${(p.precio_venta || 0).toFixed(2)}`,
+      `$${((p.stock_actual || 0) * (p.precio_venta || 0)).toFixed(2)}`
+    ]);
+    
+    doc.autoTable({
+      head: [headers],
+      body: rows,
+      startY: yPos,
+      styles: { fontSize: 9, cellPadding: 2 },
+      headStyles: {
+        fillColor: [102, 126, 234],
+        textColor: 255,
+        fontStyle: 'bold',
+      },
+      columnStyles: {
+        2: { halign: 'center' },
+        3: { halign: 'center' },
+        4: { halign: 'right' },
+        5: { halign: 'right' },
+      },
+      didDrawCell: (data) => {
+        // Resaltar productos con stock bajo
+        if (data.section === 'body' && data.column.index === 2) {
+          const producto = productos[data.row.index];
+          if (producto.stock_actual <= producto.stock_minimo) {
+            doc.setFillColor(254, 215, 215);
+            doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
+            doc.setTextColor(0);
+            doc.text(data.cell.text, data.cell.x + 2, data.cell.y + data.cell.height / 2 + 2);
+          }
+        }
+      }
+    });
+    
+    // Pie de página
+    const pageCount = doc.internal.getNumberOfPages();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.text(
+        `Página ${i} de ${pageCount}`,
+        pageWidth / 2,
+        pageHeight - 10,
+        { align: 'center' }
+      );
+    }
+    
+    doc.save(`inventario_${new Date().getTime()}.pdf`);
+    
+    return { success: true, message: 'Reporte de inventario exportado' };
+  } catch (error) {
+    console.error('Error exporting inventario to PDF:', error);
+    return { success: false, message: 'Error al exportar reporte', error };
+  }
+};
+
+/**
+ * Exportar reporte de ventas a PDF
+ * @param {Array} ventas - Lista de ventas
+ * @param {Object} stats - Estadísticas
+ * @param {Object} periodo - Período del reporte
+ */
+export const exportVentasToPDF = (ventas, stats = {}, periodo = {}) => {
+  try {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Encabezado
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('💰 REPORTE DE VENTAS', pageWidth / 2, 20, { align: 'center' });
+    
+    // Período
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    if (periodo.inicio && periodo.fin) {
+      doc.text(
+        `Período: ${periodo.inicio} - ${periodo.fin}`,
+        pageWidth / 2,
+        28,
+        { align: 'center' }
+      );
+    }
+    
+    // Estadísticas
+    let yPos = 38;
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text('Resumen:', 14, yPos);
+    yPos += 7;
+    
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    doc.text(`• Total de ventas: ${stats.totalVentas || 0}`, 20, yPos);
+    yPos += 6;
+    doc.text(`• Ingresos totales: $${(stats.ingresosTotal || 0).toFixed(2)}`, 20, yPos);
+    yPos += 6;
+    doc.text(`• Ticket promedio: $${(stats.ticketPromedio || 0).toFixed(2)}`, 20, yPos);
+    yPos += 6;
+    doc.text(`• Ganancia total: $${(stats.gananciaTotal || 0).toFixed(2)}`, 20, yPos);
+    yPos += 10;
+    
+    // Tabla de ventas
+    const headers = ['Fecha', 'Cliente', 'Método Pago', 'Total'];
+    const rows = ventas.map(v => [
+      new Date(v.fecha_venta).toLocaleDateString('es-MX'),
+      v.cliente_nombre || 'Cliente General',
+      v.metodo_pago || '-',
+      `$${(v.total || 0).toFixed(2)}`
+    ]);
+    
+    doc.autoTable({
+      head: [headers],
+      body: rows,
+      startY: yPos,
+      styles: { fontSize: 9, cellPadding: 2 },
+      headStyles: {
+        fillColor: [72, 187, 120],
+        textColor: 255,
+        fontStyle: 'bold',
+      },
+      columnStyles: {
+        3: { halign: 'right', fontStyle: 'bold' },
+      },
+    });
+    
+    // Total final
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(
+      `TOTAL: $${(stats.ingresosTotal || 0).toFixed(2)}`,
+      pageWidth - 14,
+      finalY,
+      { align: 'right' }
+    );
+    
+    // Pie de página
+    const pageCount = doc.internal.getNumberOfPages();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.text(
+        `Página ${i} de ${pageCount}`,
+        pageWidth / 2,
+        pageHeight - 10,
+        { align: 'center' }
+      );
+    }
+    
+    doc.save(`ventas_${new Date().getTime()}.pdf`);
+    
+    return { success: true, message: 'Reporte de ventas exportado' };
+  } catch (error) {
+    console.error('Error exporting ventas to PDF:', error);
+    return { success: false, message: 'Error al exportar reporte', error };
+  }
+};
+
+/**
+ * Formatear datos de productos para exportación
+ * @param {Array} productos - Lista de productos
+ */
+export const formatProductosForExport = (productos) => {
+  return productos.map(p => ({
+    'Nombre': p.nombre,
+    'Categoría': p.categoria || '-',
+    'Stock Actual': p.stock_actual || 0,
+    'Stock Mínimo': p.stock_minimo || 0,
+    'Unidad': p.unidad_medida || '-',
+    'Precio Compra': `$${(p.precio_compra || 0).toFixed(2)}`,
+    'Precio Venta': `$${(p.precio_venta || 0).toFixed(2)}`,
+    'Valor Total': `$${((p.stock_actual || 0) * (p.precio_venta || 0)).toFixed(2)}`,
+    'Estado': p.activo ? 'Activo' : 'Inactivo'
+  }));
+};
+
+/**
+ * Formatear datos de ventas para exportación
+ * @param {Array} ventas - Lista de ventas
+ */
+export const formatVentasForExport = (ventas) => {
+  return ventas.map(v => ({
+    'Fecha': new Date(v.fecha_venta).toLocaleDateString('es-MX'),
+    'Hora': new Date(v.fecha_venta).toLocaleTimeString('es-MX'),
+    'Cliente': v.cliente_nombre || 'Cliente General',
+    'Teléfono': v.cliente_telefono || '-',
+    'Método de Pago': v.metodo_pago || '-',
+    'Total': `$${(v.total || 0).toFixed(2)}`
+  }));
+};
+
+/**
+ * Formatear datos de entradas para exportación
+ * @param {Array} entradas - Lista de entradas
+ * @param {Array} productos - Lista de productos
+ */
+export const formatEntradasForExport = (entradas, productos) => {
+  return entradas.map(e => {
+    const producto = productos.find(p => p.id === e.producto_id);
+    return {
+      'Fecha': new Date(e.fecha_entrada).toLocaleDateString('es-MX'),
+      'Producto': producto?.nombre || '-',
+      'Cantidad': e.cantidad,
+      'Precio Compra': `$${(e.precio_compra || 0).toFixed(2)}`,
+      'Total': `$${((e.cantidad || 0) * (e.precio_compra || 0)).toFixed(2)}`,
+      'Proveedor': e.proveedor || '-',
+      'Nota': e.nota || '-'
+    };
+  });
+};
+
+/**
+ * Formatear datos de mermas para exportación
+ * @param {Array} mermas - Lista de mermas
+ * @param {Array} productos - Lista de productos
+ */
+export const formatMermasForExport = (mermas, productos) => {
+  return mermas.map(m => {
+    const producto = productos.find(p => p.id === m.producto_id);
+    const valor = (m.cantidad || 0) * (producto?.precio_venta || 0);
+    return {
+      'Fecha': new Date(m.fecha_merma || m.created_at).toLocaleDateString('es-MX'),
+      'Producto': producto?.nombre || '-',
+      'Cantidad': m.cantidad,
+      'Motivo': m.motivo,
+      'Valor Pérdida': `$${valor.toFixed(2)}`,
+      'Descripción': m.descripcion || '-'
+    };
+  });
+};
+
+/**
+ * Formatear datos de proveedores para exportación
+ * @param {Array} proveedores - Lista de proveedores
+ */
+export const formatProveedoresForExport = (proveedores) => {
+  return proveedores.map(p => ({
+    'Nombre': p.nombre,
+    'Contacto': p.contacto || '-',
+    'Teléfono': p.telefono || '-',
+    'Email': p.email || '-',
+    'RFC': p.rfc || '-',
+    'Dirección': p.direccion || '-',
+    'Productos': p.productos_suministrados || '-',
+    'Estado': p.activo ? 'Activo' : 'Inactivo'
+  }));
+};
+
+export default {
+  exportToExcel,
+  exportToCSV,
+  exportToPDF,
+  exportInventarioToPDF,
+  exportVentasToPDF,
+  formatProductosForExport,
+  formatVentasForExport,
+  formatEntradasForExport,
+  formatMermasForExport,
+  formatProveedoresForExport
+};

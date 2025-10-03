@@ -100,5 +100,16 @@ export const authService = {
   },
   getCurrentUser: () => api.get('/auth/me'),
 };
+// Agregar al final de src/services/api.js
+
+// Servicios de Proveedores
+export const proveedoresService = {
+  getAll: () => api.get('/proveedores'),
+  getById: (id) => api.get(`/proveedores/${id}`),
+  create: (proveedor) => api.post('/proveedores', proveedor),
+  update: (id, proveedor) => api.put(`/proveedores/${id}`, proveedor),
+  delete: (id) => api.delete(`/proveedores/${id}`),
+  getHistorialCompras: (id) => api.get(`/proveedores/${id}/compras`),
+};
 
 export default api;

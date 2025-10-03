@@ -1,3 +1,4 @@
+// Actualizar src/components/Navigation.js
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import './Navigation.css';
@@ -12,6 +13,7 @@ const Navigation = () => {
     { path: '/ventas', name: 'Ventas', icon: '💰' },
     { path: '/mermas', name: 'Mermas', icon: '⚠️' },
     { path: '/estadisticas', name: 'Estadísticas', icon: '📈' },
+    { path: '/proveedores', name: 'Proveedores', icon: '👥' }, // ✨ NUEVO
     { path: '/pago-tarjeta', name: 'Pago Tarjeta', icon: '💳' },
   ];
 
