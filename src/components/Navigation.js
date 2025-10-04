@@ -14,7 +14,6 @@ const Navigation = () => {
     { path: '/mermas', name: 'Mermas', icon: '⚠️' },
     { path: '/estadisticas', name: 'Estadísticas', icon: '📈' },
     { path: '/proveedores', name: 'Proveedores', icon: '👥' }, // ✨ NUEVO
-    { path: '/pago-tarjeta', name: 'Pago Tarjeta', icon: '💳' },
   ];
 
   return (

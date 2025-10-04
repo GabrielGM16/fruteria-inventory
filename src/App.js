@@ -10,7 +10,6 @@ import Entradas from './components/Entradas';
 import Ventas from './components/Ventas';
 import Mermas from './components/Mermas';
 import Estadisticas from './components/Estadisticas';
-import PagoTarjeta from './components/PagoTarjeta';
 import Proveedores from './components/Proveedores'; // ✨ NUEVO
 import Navigation from './components/Navigation';
 import { ToastProvider } from './components/Toast'; // ✨ NUEVO
@@ -35,7 +34,6 @@ function App() {
               <Route path="/ventas" element={<Ventas />} />
               <Route path="/mermas" element={<Mermas />} />
               <Route path="/estadisticas" element={<Estadisticas />} />
-              <Route path="/pago-tarjeta" element={<PagoTarjeta />} />
               <Route path="/proveedores" element={<Proveedores />} /> {/* ✨ NUEVO */}
             </Routes>
           </main>
