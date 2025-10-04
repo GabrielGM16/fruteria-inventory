@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { productosService } from '../services/api';
 import { useToast } from './Toast';
+import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { calcularGanancia, esStockBajo, validarStock } from '../utils/helpers';
 import { 
@@ -19,6 +20,7 @@ const Inventario = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const toast = useToast();
+  const { hasPermission } = useAuth();
 
   const [formData, setFormData] = useState({
     nombre: '',
@@ -254,25 +256,31 @@ const Inventario = () => {
           </div>
           
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button onClick={handleExportExcel} className="btn btn-success" style={{ padding: '8px 16px' }}>
-              📊 Excel
-            </button>
-            <button onClick={handleExportCSV} className="btn btn-primary" style={{ padding: '8px 16px' }}>
-              📄 CSV
-            </button>
-            <button onClick={handleExportPDF} className="btn btn-danger" style={{ padding: '8px 16px' }}>
-              📕 PDF
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                setEditingProduct(null);
-                resetForm();
-                setShowModal(true);
-              }}
-            >
-              ➕ Nuevo Producto
-            </button>
+            {hasPermission('reportes_lectura') && (
+              <>
+                <button onClick={handleExportExcel} className="btn btn-success" style={{ padding: '8px 16px' }}>
+                  📊 Excel
+                </button>
+                <button onClick={handleExportCSV} className="btn btn-primary" style={{ padding: '8px 16px' }}>
+                  📄 CSV
+                </button>
+                <button onClick={handleExportPDF} className="btn btn-danger" style={{ padding: '8px 16px' }}>
+                  📕 PDF
+                </button>
+              </>
+            )}
+            {hasPermission('inventario_escritura') && (
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setEditingProduct(null);
+                  resetForm();
+                  setShowModal(true);
+                }}
+              >
+                ➕ Nuevo Producto
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -314,13 +322,17 @@ const Inventario = () => {
                     </td>
                     <td>{producto.categoria}</td>
                     <td>
-                      <input
-                        type="number"
-                        value={producto.stock_actual}
-                        onChange={(e) => handleStockUpdate(producto.id, e.target.value)}
-                        style={{ width: '80px', padding: '5px', border: '1px solid #ddd', borderRadius: '4px' }}
-                        step="0.01"
-                      />
+                      {hasPermission('inventario_escritura') ? (
+                        <input
+                          type="number"
+                          value={producto.stock_actual}
+                          onChange={(e) => handleStockUpdate(producto.id, e.target.value)}
+                          style={{ width: '80px', padding: '5px', border: '1px solid #ddd', borderRadius: '4px' }}
+                          step="0.01"
+                        />
+                      ) : (
+                        <span>{producto.stock_actual}</span>
+                      )}
                     </td>
                     <td>{producto.stock_minimo}</td>
                     <td>{producto.unidad_medida}</td>
@@ -342,20 +354,24 @@ const Inventario = () => {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '5px' }}>
-                        <button
-                          className="btn btn-primary"
-                          onClick={() => handleEdit(producto)}
-                          style={{ padding: '5px 10px', fontSize: '0.8rem' }}
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          className="btn btn-danger"
-                          onClick={() => handleDelete(producto.id)}
-                          style={{ padding: '5px 10px', fontSize: '0.8rem' }}
-                        >
-                          🗑️
-                        </button>
+                        {hasPermission('inventario_escritura') && (
+                          <>
+                            <button
+                              className="btn btn-primary"
+                              onClick={() => handleEdit(producto)}
+                              style={{ padding: '5px 10px', fontSize: '0.8rem' }}
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              onClick={() => handleDelete(producto.id)}
+                              style={{ padding: '5px 10px', fontSize: '0.8rem' }}
+                            >
+                              🗑️
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

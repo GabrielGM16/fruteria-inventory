@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { productosService, ventasService, inventarioService } from '../services/api';
 import { useToast } from './Toast';
+import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate, formatRelativeTime } from '../utils/formatters';
 import { esHoy, esEstaSemana, sumarPropiedad, agruparPor } from '../utils/helpers';
 import {
@@ -46,6 +47,7 @@ const Dashboard = () => {
   const [ventasData, setVentasData] = useState([]);
   const [productosData, setProductosData] = useState([]);
   const toast = useToast();
+  const { user, hasPermission } = useAuth();
 
   useEffect(() => {
     loadDashboardData();
@@ -296,6 +298,24 @@ const Dashboard = () => {
           <div>
             <h1 className="page-title">Dashboard</h1>
             <p className="page-subtitle">Panel de control - Frutería</p>
+            {user && (
+              <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f7fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: '#4a5568' }}>
+                  👋 Bienvenido, <strong>{user.nombre_completo}</strong> 
+                  <span style={{ 
+                    marginLeft: '10px', 
+                    padding: '2px 8px', 
+                    backgroundColor: user.rol === 'admin' ? '#e53e3e' : user.rol === 'dueño' ? '#3182ce' : '#38a169',
+                    color: 'white',
+                    borderRadius: '12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 'bold'
+                  }}>
+                    {user.rol.toUpperCase()}
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <span style={{ fontSize: '0.9rem', color: '#666' }}>
@@ -387,37 +407,55 @@ const Dashboard = () => {
       <div className="card">
         <h3 style={{ marginTop: 0 }}>🚀 Acciones Rápidas</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
-          <button 
-            className="btn btn-primary"
-            onClick={() => window.location.href = '/inventario'}
-            style={{ padding: '15px', fontSize: '1rem' }}
-          >
-            📦 Gestionar Inventario
-          </button>
+          {hasPermission('inventario_lectura') && (
+            <button 
+              className="btn btn-primary"
+              onClick={() => window.location.href = '/inventario'}
+              style={{ padding: '15px', fontSize: '1rem' }}
+            >
+              📦 Gestionar Inventario
+            </button>
+          )}
           
-          <button 
-            className="btn btn-success"
-            onClick={() => window.location.href = '/ventas'}
-            style={{ padding: '15px', fontSize: '1rem' }}
-          >
-            💰 Nueva Venta
-          </button>
+          {hasPermission('ventas_escritura') && (
+            <button 
+              className="btn btn-success"
+              onClick={() => window.location.href = '/ventas'}
+              style={{ padding: '15px', fontSize: '1rem' }}
+            >
+              💰 Nueva Venta
+            </button>
+          )}
           
-          <button 
-            className="btn btn-warning"
-            onClick={() => window.location.href = '/entradas'}
-            style={{ padding: '15px', fontSize: '1rem' }}
-          >
-            📥 Registrar Entrada
-          </button>
+          {hasPermission('entradas_escritura') && (
+            <button 
+              className="btn btn-warning"
+              onClick={() => window.location.href = '/entradas'}
+              style={{ padding: '15px', fontSize: '1rem' }}
+            >
+              📥 Registrar Entrada
+            </button>
+          )}
           
-          <button 
-            className="btn btn-primary"
-            onClick={() => window.location.href = '/estadisticas'}
-            style={{ padding: '15px', fontSize: '1rem' }}
-          >
-            📈 Ver Reportes
-          </button>
+          {hasPermission('reportes_lectura') && (
+            <button 
+              className="btn btn-primary"
+              onClick={() => window.location.href = '/estadisticas'}
+              style={{ padding: '15px', fontSize: '1rem' }}
+            >
+              📈 Ver Reportes
+            </button>
+          )}
+
+          {hasPermission('usuarios_lectura') && (
+            <button 
+              className="btn btn-secondary"
+              onClick={() => window.location.href = '/usuarios'}
+              style={{ padding: '15px', fontSize: '1rem' }}
+            >
+              👥 Gestionar Usuarios
+            </button>
+          )}
         </div>
       </div>
 
