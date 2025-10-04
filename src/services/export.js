@@ -1,13 +1,10 @@
 // src/services/export.js
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 /**
  * Convierte un valor a número de forma segura
- * @param {any} value - Valor a convertir
- * @param {number} defaultValue - Valor por defecto si la conversión falla
- * @returns {number} - Número válido
  */
 const toSafeNumber = (value, defaultValue = 0) => {
   if (value === null || value === undefined || value === '') {
@@ -19,40 +16,28 @@ const toSafeNumber = (value, defaultValue = 0) => {
 
 /**
  * Exportar datos a Excel
- * @param {Array} data - Datos a exportar
- * @param {String} filename - Nombre del archivo
- * @param {String} sheetName - Nombre de la hoja
  */
 export const exportToExcel = (data, filename = 'datos', sheetName = 'Hoja1') => {
   try {
-    // Crear un nuevo libro de trabajo
     const workbook = XLSX.utils.book_new();
-    
-    // Convertir datos a hoja de trabajo
     const worksheet = XLSX.utils.json_to_sheet(data);
     
-    // Ajustar ancho de columnas automáticamente
+    // Ajustar ancho de columnas
     const maxWidth = 50;
     const columnWidths = [];
     
-    // Calcular ancho de columnas basado en el contenido
     if (data.length > 0) {
       Object.keys(data[0]).forEach((key, index) => {
         const maxLength = Math.max(
           key.length,
-          ...data.map(row => 
-            row[key] ? String(row[key]).length : 0
-          )
+          ...data.map(row => row[key] ? String(row[key]).length : 0)
         );
         columnWidths[index] = { wch: Math.min(maxLength + 2, maxWidth) };
       });
       worksheet['!cols'] = columnWidths;
     }
     
-    // Agregar la hoja al libro
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    
-    // Generar archivo y descargarlo
     XLSX.writeFile(workbook, `${filename}.xlsx`);
     
     return { success: true, message: 'Archivo Excel exportado exitosamente' };
@@ -64,8 +49,6 @@ export const exportToExcel = (data, filename = 'datos', sheetName = 'Hoja1') => 
 
 /**
  * Exportar datos a CSV
- * @param {Array} data - Datos a exportar
- * @param {String} filename - Nombre del archivo
  */
 export const exportToCSV = (data, filename = 'datos') => {
   try {
@@ -73,17 +56,12 @@ export const exportToCSV = (data, filename = 'datos') => {
       throw new Error('No hay datos para exportar');
     }
     
-    // Obtener encabezados
     const headers = Object.keys(data[0]);
-    
-    // Crear contenido CSV
     let csvContent = headers.join(',') + '\n';
     
-    // Agregar filas
     data.forEach(row => {
       const values = headers.map(header => {
         const value = row[header];
-        // Escapar comillas y agregar comillas si contiene comas
         if (value === null || value === undefined) return '';
         const stringValue = String(value);
         if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
@@ -94,7 +72,6 @@ export const exportToCSV = (data, filename = 'datos') => {
       csvContent += values.join(',') + '\n';
     });
     
-    // Crear blob y descargar
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -115,10 +92,6 @@ export const exportToCSV = (data, filename = 'datos') => {
 
 /**
  * Exportar datos a PDF (tabla simple)
- * @param {Array} data - Datos a exportar
- * @param {String} filename - Nombre del archivo
- * @param {String} title - Título del documento
- * @param {Object} options - Opciones adicionales
  */
 export const exportToPDF = (data, filename = 'reporte', title = 'Reporte', options = {}) => {
   try {
@@ -126,10 +99,7 @@ export const exportToPDF = (data, filename = 'reporte', title = 'Reporte', optio
       throw new Error('No hay datos para exportar');
     }
     
-    // Crear documento PDF
     const doc = new jsPDF(options.orientation || 'portrait');
-    
-    // Configuración
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     
@@ -158,8 +128,8 @@ export const exportToPDF = (data, filename = 'reporte', title = 'Reporte', optio
       return String(value);
     }));
     
-    // Agregar tabla
-    doc.autoTable({
+    // Agregar tabla usando autoTable
+    autoTable(doc, {
       head: [headers],
       body: rows,
       startY: 35,
@@ -178,7 +148,7 @@ export const exportToPDF = (data, filename = 'reporte', title = 'Reporte', optio
       margin: { top: 35, left: 14, right: 14 },
     });
     
-    // Pie de página con número de página
+    // Pie de página
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -191,7 +161,6 @@ export const exportToPDF = (data, filename = 'reporte', title = 'Reporte', optio
       );
     }
     
-    // Guardar documento
     doc.save(`${filename}.pdf`);
     
     return { success: true, message: 'Archivo PDF exportado exitosamente' };
@@ -203,8 +172,6 @@ export const exportToPDF = (data, filename = 'reporte', title = 'Reporte', optio
 
 /**
  * Exportar reporte de inventario a PDF
- * @param {Array} productos - Lista de productos
- * @param {Object} stats - Estadísticas
  */
 export const exportInventarioToPDF = (productos, stats = {}) => {
   try {
@@ -255,14 +222,14 @@ export const exportInventarioToPDF = (productos, stats = {}) => {
       return [
         p.nombre,
         p.categoria || '-',
-        `${stockActual} ${p.unidad_medida || ''}`,
-        `${stockMinimo}`,
+        `${stockActual.toFixed(2)} ${p.unidad_medida || ''}`,
+        `${stockMinimo.toFixed(2)}`,
         `$${precioVenta.toFixed(2)}`,
         `$${valorTotal.toFixed(2)}`
       ];
     });
     
-    doc.autoTable({
+    autoTable(doc, {
       head: [headers],
       body: rows,
       startY: yPos,
@@ -278,18 +245,6 @@ export const exportInventarioToPDF = (productos, stats = {}) => {
         4: { halign: 'right' },
         5: { halign: 'right' },
       },
-      didDrawCell: (data) => {
-        // Resaltar productos con stock bajo
-        if (data.section === 'body' && data.column.index === 2) {
-          const producto = productos[data.row.index];
-          if (producto.stock_actual <= producto.stock_minimo) {
-            doc.setFillColor(254, 215, 215);
-            doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
-            doc.setTextColor(0);
-            doc.text(data.cell.text, data.cell.x + 2, data.cell.y + data.cell.height / 2 + 2);
-          }
-        }
-      }
     });
     
     // Pie de página
@@ -317,9 +272,6 @@ export const exportInventarioToPDF = (productos, stats = {}) => {
 
 /**
  * Exportar reporte de ventas a PDF
- * @param {Array} ventas - Lista de ventas
- * @param {Object} stats - Estadísticas
- * @param {Object} periodo - Período del reporte
  */
 export const exportVentasToPDF = (ventas, stats = {}, periodo = {}) => {
   try {
@@ -370,7 +322,7 @@ export const exportVentasToPDF = (ventas, stats = {}, periodo = {}) => {
       `$${toSafeNumber(v.total).toFixed(2)}`
     ]);
     
-    doc.autoTable({
+    autoTable(doc, {
       head: [headers],
       body: rows,
       startY: yPos,
@@ -419,10 +371,7 @@ export const exportVentasToPDF = (ventas, stats = {}, periodo = {}) => {
   }
 };
 
-/**
- * Formatear datos de productos para exportación
- * @param {Array} productos - Lista de productos
- */
+// Funciones de formateo para exportación
 export const formatProductosForExport = (productos) => {
   return productos.map(p => {
     const stockActual = toSafeNumber(p.stock_actual);
@@ -434,8 +383,8 @@ export const formatProductosForExport = (productos) => {
     return {
       'Nombre': p.nombre,
       'Categoría': p.categoria || '-',
-      'Stock Actual': stockActual,
-      'Stock Mínimo': stockMinimo,
+      'Stock Actual': stockActual.toFixed(2),
+      'Stock Mínimo': stockMinimo.toFixed(2),
       'Unidad': p.unidad_medida || '-',
       'Precio Compra': `$${precioCompra.toFixed(2)}`,
       'Precio Venta': `$${precioVenta.toFixed(2)}`,
@@ -445,10 +394,6 @@ export const formatProductosForExport = (productos) => {
   });
 };
 
-/**
- * Formatear datos de ventas para exportación
- * @param {Array} ventas - Lista de ventas
- */
 export const formatVentasForExport = (ventas) => {
   return ventas.map(v => {
     const total = toSafeNumber(v.total);
@@ -464,11 +409,6 @@ export const formatVentasForExport = (ventas) => {
   });
 };
 
-/**
- * Formatear datos de entradas para exportación
- * @param {Array} entradas - Lista de entradas
- * @param {Array} productos - Lista de productos
- */
 export const formatEntradasForExport = (entradas, productos) => {
   return entradas.map(e => {
     const producto = productos.find(p => p.id === e.producto_id);
@@ -479,7 +419,7 @@ export const formatEntradasForExport = (entradas, productos) => {
     return {
       'Fecha': new Date(e.fecha_entrada).toLocaleDateString('es-MX'),
       'Producto': producto?.nombre || '-',
-      'Cantidad': cantidad,
+      'Cantidad': cantidad.toFixed(2),
       'Precio Compra': `$${precioCompra.toFixed(2)}`,
       'Total': `$${total.toFixed(2)}`,
       'Proveedor': e.proveedor || '-',
@@ -488,11 +428,6 @@ export const formatEntradasForExport = (entradas, productos) => {
   });
 };
 
-/**
- * Formatear datos de mermas para exportación
- * @param {Array} mermas - Lista de mermas
- * @param {Array} productos - Lista de productos
- */
 export const formatMermasForExport = (mermas, productos) => {
   return mermas.map(m => {
     const producto = productos.find(p => p.id === m.producto_id);
@@ -503,7 +438,7 @@ export const formatMermasForExport = (mermas, productos) => {
     return {
       'Fecha': new Date(m.fecha_merma || m.created_at).toLocaleDateString('es-MX'),
       'Producto': producto?.nombre || '-',
-      'Cantidad': cantidad,
+      'Cantidad': cantidad.toFixed(2),
       'Motivo': m.motivo,
       'Valor Pérdida': `$${valor.toFixed(2)}`,
       'Descripción': m.descripcion || '-'
@@ -511,10 +446,6 @@ export const formatMermasForExport = (mermas, productos) => {
   });
 };
 
-/**
- * Formatear datos de proveedores para exportación
- * @param {Array} proveedores - Lista de proveedores
- */
 export const formatProveedoresForExport = (proveedores) => {
   return proveedores.map(p => ({
     'Nombre': p.nombre,
