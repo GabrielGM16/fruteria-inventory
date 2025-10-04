@@ -1,5 +1,6 @@
 // src/components/BarcodeScanner.js
 import React, { useState, useEffect, useRef } from 'react';
+import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useToast } from './Toast';
 
 const BarcodeScanner = ({ onScan, onClose }) => {
@@ -7,48 +8,124 @@ const BarcodeScanner = ({ onScan, onClose }) => {
   const [manualCode, setManualCode] = useState('');
   const [error, setError] = useState('');
   const [scanMode, setScanMode] = useState('manual'); // 'manual' o 'camera'
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
+  const scannerRef = useRef(null);
+  const html5QrcodeScannerRef = useRef(null);
   const toast = useToast();
 
-  // Limpiar cámara al desmontar
+  // Limpiar escáner al desmontar o cambiar de modo
   useEffect(() => {
     return () => {
       stopCamera();
     };
   }, []);
 
-  const startCamera = async () => {
+  useEffect(() => {
+    if (scanMode === 'camera' && scanning) {
+      // Pequeño delay para asegurar que el DOM esté listo
+      setTimeout(() => {
+        initializeScanner();
+      }, 100);
+    } else {
+      stopCamera();
+    }
+  }, [scanMode, scanning]);
+
+  const initializeScanner = async () => {
     try {
       setError('');
-      setScanning(true);
-
-      // Solicitar acceso a la cámara
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' } // Cámara trasera en móviles
-      });
-
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      console.log('Iniciando escáner...');
+      
+      // Verificar que el elemento existe
+      const readerElement = document.getElementById('barcode-reader');
+      if (!readerElement) {
+        console.error('Elemento barcode-reader no encontrado');
+        setError('Error al inicializar el escáner. Recargando...');
+        return;
       }
 
+      // Limpiar escáner anterior si existe
+      if (html5QrcodeScannerRef.current) {
+        try {
+          await html5QrcodeScannerRef.current.clear();
+          html5QrcodeScannerRef.current = null;
+        } catch (err) {
+          console.log('Error clearing previous scanner:', err);
+        }
+      }
+
+      // Limpiar el contenido del div antes de crear un nuevo escáner
+      readerElement.innerHTML = '';
+
+      // Configuración simplificada del escáner
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 150 },
+        rememberLastUsedCamera: true,
+        // Soportar códigos de barras
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.ITF,
+        ],
+      };
+
+      console.log('Creando escáner con configuración:', config);
+
+      // Crear instancia del escáner
+      html5QrcodeScannerRef.current = new Html5QrcodeScanner(
+        "barcode-reader",
+        config,
+        false
+      );
+
+      // Callback cuando se escanea exitosamente
+      const onScanSuccess = (decodedText, decodedResult) => {
+        console.log('✅ Código escaneado:', decodedText);
+        toast.success(`Código detectado: ${decodedText}`);
+        
+        // Detener escáner
+        stopCamera();
+        
+        // Enviar código al componente padre
+        onScan(decodedText);
+      };
+
+      // Callback para errores
+      const onScanError = (errorMessage) => {
+        // Solo loguear errores importantes, no el "no se encontró código"
+        if (!errorMessage.includes('NotFoundException') && 
+            !errorMessage.includes('No MultiFormat Readers')) {
+          console.log('Scan error:', errorMessage);
+        }
+      };
+
+      // Renderizar escáner
+      console.log('Renderizando escáner...');
+      html5QrcodeScannerRef.current.render(onScanSuccess, onScanError);
+      
+      console.log('✅ Escáner iniciado correctamente');
       toast.info('Cámara activada. Apunta al código de barras');
+      
     } catch (err) {
-      console.error('Error accessing camera:', err);
-      setError('No se pudo acceder a la cámara. Usa el modo manual.');
-      toast.error('Error al acceder a la cámara');
+      console.error('❌ Error initializing scanner:', err);
+      console.error('Error details:', err.message, err.stack);
+      setError(`No se pudo iniciar el escáner: ${err.message}. Verifica los permisos de la cámara.`);
+      toast.error('Error al iniciar el escáner');
       setScanning(false);
     }
   };
 
   const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
+    if (html5QrcodeScannerRef.current) {
+      html5QrcodeScannerRef.current.clear().catch(err => {
+        console.log('Error stopping camera:', err);
+      });
+      html5QrcodeScannerRef.current = null;
     }
     setScanning(false);
   };
@@ -58,7 +135,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
     if (manualCode.trim()) {
       onScan(manualCode.trim());
       setManualCode('');
-      toast.success(`Código escaneado: ${manualCode}`);
+      toast.success(`Código ingresado: ${manualCode}`);
     }
   };
 
@@ -66,6 +143,15 @@ const BarcodeScanner = ({ onScan, onClose }) => {
     // Detectar entrada rápida de escáner USB (simula escritura rápida)
     if (e.key === 'Enter' && manualCode.trim()) {
       handleManualSubmit(e);
+    }
+  };
+
+  const handleModeChange = (mode) => {
+    setScanMode(mode);
+    if (mode === 'camera') {
+      setScanning(true);
+    } else {
+      stopCamera();
     }
   };
 
@@ -87,11 +173,11 @@ const BarcodeScanner = ({ onScan, onClose }) => {
         padding: '30px',
         borderRadius: '12px',
         width: '90%',
-        maxWidth: '500px',
+        maxWidth: '600px',
         maxHeight: '90vh',
         overflowY: 'auto'
       }}>
-        <h3 style={{ marginTop: 0, textAlign: 'center' }}>
+        <h3 style={{ marginTop: 0, textAlign: 'center', color: '#1a202c' }}>
           🏷️ Escanear Código de Barras
         </h3>
 
@@ -104,10 +190,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
           paddingBottom: '10px'
         }}>
           <button
-            onClick={() => {
-              setScanMode('manual');
-              stopCamera();
-            }}
+            onClick={() => handleModeChange('manual')}
             style={{
               flex: 1,
               padding: '10px',
@@ -116,16 +199,14 @@ const BarcodeScanner = ({ onScan, onClose }) => {
               backgroundColor: scanMode === 'manual' ? '#667eea' : '#e2e8f0',
               color: scanMode === 'manual' ? 'white' : '#4a5568',
               cursor: 'pointer',
-              fontWeight: scanMode === 'manual' ? 'bold' : 'normal'
+              fontWeight: scanMode === 'manual' ? 'bold' : 'normal',
+              transition: 'all 0.3s ease'
             }}
           >
             ⌨️ Manual
           </button>
           <button
-            onClick={() => {
-              setScanMode('camera');
-              if (!scanning) startCamera();
-            }}
+            onClick={() => handleModeChange('camera')}
             style={{
               flex: 1,
               padding: '10px',
@@ -134,7 +215,8 @@ const BarcodeScanner = ({ onScan, onClose }) => {
               backgroundColor: scanMode === 'camera' ? '#667eea' : '#e2e8f0',
               color: scanMode === 'camera' ? 'white' : '#4a5568',
               cursor: 'pointer',
-              fontWeight: scanMode === 'camera' ? 'bold' : 'normal'
+              fontWeight: scanMode === 'camera' ? 'bold' : 'normal',
+              transition: 'all 0.3s ease'
             }}
           >
             📷 Cámara
@@ -151,10 +233,10 @@ const BarcodeScanner = ({ onScan, onClose }) => {
               marginBottom: '20px',
               textAlign: 'center'
             }}>
-              <p style={{ margin: '0 0 10px 0', color: '#4a5568' }}>
+              <p style={{ margin: '0 0 10px 0', color: '#2d3748', fontWeight: 'bold' }}>
                 💡 <strong>Tres formas de ingresar el código:</strong>
               </p>
-              <ol style={{ textAlign: 'left', color: '#718096', fontSize: '0.9rem' }}>
+              <ol style={{ textAlign: 'left', color: '#4a5568', fontSize: '0.9rem' }}>
                 <li>Escribe el código manualmente</li>
                 <li>Usa un escáner USB conectado</li>
                 <li>Copia y pega el código</li>
@@ -163,7 +245,9 @@ const BarcodeScanner = ({ onScan, onClose }) => {
 
             <form onSubmit={handleManualSubmit}>
               <div className="form-group">
-                <label className="form-label">Código de Barras:</label>
+                <label className="form-label" style={{ color: '#2d3748' }}>
+                  Código de Barras:
+                </label>
                 <input
                   type="text"
                   className="form-input"
@@ -176,7 +260,8 @@ const BarcodeScanner = ({ onScan, onClose }) => {
                     fontSize: '1.2rem',
                     textAlign: 'center',
                     fontFamily: 'monospace',
-                    padding: '15px'
+                    padding: '15px',
+                    color: '#1a202c'
                   }}
                 />
               </div>
@@ -203,95 +288,73 @@ const BarcodeScanner = ({ onScan, onClose }) => {
           <div>
             {error && (
               <div className="alert alert-danger" style={{ marginBottom: '15px' }}>
-                {error}
+                <strong>Error:</strong> {error}
+                <br />
+                <small>
+                  <strong>Soluciones:</strong>
+                  <ul style={{ marginTop: '10px', marginBottom: 0 }}>
+                    <li>Verifica que el navegador tenga permiso para usar la cámara</li>
+                    <li>Asegúrate de estar usando Chrome, Edge o Safari</li>
+                    <li>Si aparece un icono de cámara bloqueada en la barra de dirección, haz clic para permitir</li>
+                    <li>Intenta recargar la página (F5)</li>
+                  </ul>
+                </small>
               </div>
             )}
 
-            {!scanning && !error && (
-              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📷</div>
-                <button
-                  onClick={startCamera}
-                  className="btn btn-primary"
-                  style={{ padding: '12px 30px' }}
-                >
-                  🎥 Activar Cámara
-                </button>
-              </div>
-            )}
+            {/* Información de permisos */}
+            <div style={{
+              padding: '15px',
+              backgroundColor: '#e6f7ff',
+              borderRadius: '8px',
+              marginBottom: '15px',
+              textAlign: 'left'
+            }}>
+              <p style={{ margin: '0 0 10px 0', color: '#2c5282', fontSize: '0.95rem', fontWeight: 'bold' }}>
+                📷 <strong>Instrucciones importantes:</strong>
+              </p>
+              <ol style={{ margin: 0, color: '#2d3748', fontSize: '0.9rem', paddingLeft: '20px' }}>
+                <li>El navegador te pedirá permiso para usar la cámara - <strong>debes permitirlo</strong></li>
+                <li>Aparecerá un cuadro verde donde debes colocar el código de barras</li>
+                <li>Mantén el código a 15-20 cm de la cámara</li>
+                <li>Asegúrate de tener buena iluminación</li>
+                <li>La detección es automática cuando encuentra el código</li>
+              </ol>
+            </div>
 
-            {scanning && (
-              <div>
-                <div style={{
-                  position: 'relative',
-                  width: '100%',
-                  backgroundColor: '#000',
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                  marginBottom: '15px'
-                }}>
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    style={{
-                      width: '100%',
-                      height: 'auto',
-                      display: 'block'
-                    }}
-                  />
-                  
-                  {/* Guía de escaneo */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: '80%',
-                    height: '100px',
-                    border: '2px solid #48bb78',
-                    borderRadius: '8px',
-                    boxShadow: '0 0 0 2000px rgba(0,0,0,0.5)'
-                  }}>
-                    <div style={{
-                      position: 'absolute',
-                      top: '-30px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      backgroundColor: '#48bb78',
-                      color: 'white',
-                      padding: '5px 15px',
-                      borderRadius: '4px',
-                      fontSize: '0.9rem',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      Alinea el código aquí
-                    </div>
-                  </div>
-                </div>
+            {/* Contenedor del escáner */}
+            <div style={{
+              backgroundColor: '#f7fafc',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              marginBottom: '15px',
+              minHeight: '300px',
+              border: '2px solid #e2e8f0'
+            }}>
+              <div id="barcode-reader" style={{ width: '100%' }}></div>
+            </div>
 
-                <div style={{
-                  padding: '15px',
-                  backgroundColor: '#fef5e7',
-                  borderRadius: '8px',
-                  marginBottom: '15px',
-                  textAlign: 'center'
-                }}>
-                  <p style={{ margin: 0, color: '#92400e', fontSize: '0.9rem' }}>
-                    ⚠️ <strong>Nota:</strong> La lectura automática con cámara requiere
-                    una librería adicional. Por ahora, usa el modo manual o un escáner USB.
-                  </p>
-                </div>
-
-                <button
-                  onClick={stopCamera}
-                  className="btn btn-danger"
-                  style={{ width: '100%', padding: '10px' }}
-                >
-                  ⏹️ Detener Cámara
-                </button>
-              </div>
-            )}
+            {/* Controles */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => {
+                  stopCamera();
+                  handleModeChange('camera');
+                }}
+                className="btn btn-warning"
+                style={{ flex: 1, padding: '10px' }}
+              >
+                🔄 Reintentar
+              </button>
+              
+              <button
+                onClick={() => handleModeChange('manual')}
+                className="btn btn-danger"
+                style={{ flex: 1, padding: '10px' }}
+              >
+                ⏹️ Cancelar y usar Manual
+              </button>
+            </div>
           </div>
         )}
 
