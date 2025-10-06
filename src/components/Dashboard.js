@@ -1,5 +1,5 @@
 // src/components/Dashboard.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { productosService, ventasService, inventarioService } from '../services/api';
 import { useToast } from './Toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -58,21 +58,20 @@ const Dashboard = () => {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [loadDashboardData]);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       console.log('Dashboard: Iniciando carga de datos...');
       setLoading(true);
       
-      const [productosRes, alertasRes, ventasRes] = await Promise.all([
+      const [productosRes, , ventasRes] = await Promise.all([
         productosService.getAll(),
         inventarioService.getAlertas(),
         ventasService.getAll()
       ]);
 
       const productos = Array.isArray(productosRes.data?.data) ? productosRes.data.data : [];
-      const alertasData = Array.isArray(alertasRes.data?.data) ? alertasRes.data.data : [];
       const ventas = Array.isArray(ventasRes.data?.data) ? ventasRes.data.data : [];
 
       // Calcular estadísticas
@@ -122,7 +121,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   const handleManualRefresh = () => {
     console.log('Dashboard: Actualización manual solicitada');

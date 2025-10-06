@@ -555,7 +555,7 @@ export const clonarObjeto = (obj) => {
   return JSON.parse(JSON.stringify(obj));
 };
 
-export default {
+const helpers = {
   calcularGanancia,
   calcularPorcentajeGanancia,
   calcularMargen,
@@ -596,3 +596,5 @@ export default {
   esObjetoVacio,
   clonarObjeto
 };
+
+export default helpers;

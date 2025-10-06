@@ -1,5 +1,5 @@
 // src/components/BarcodeScanner.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useToast } from './Toast';
 
@@ -8,7 +8,6 @@ const BarcodeScanner = ({ onScan, onClose }) => {
   const [manualCode, setManualCode] = useState('');
   const [error, setError] = useState('');
   const [scanMode, setScanMode] = useState('manual'); // 'manual' o 'camera'
-  const scannerRef = useRef(null);
   const html5QrcodeScannerRef = useRef(null);
   const toast = useToast();
 
@@ -28,9 +27,9 @@ const BarcodeScanner = ({ onScan, onClose }) => {
     } else {
       stopCamera();
     }
-  }, [scanMode, scanning]);
+  }, [scanMode, scanning, initializeScanner]);
 
-  const initializeScanner = async () => {
+  const initializeScanner = useCallback(async () => {
     try {
       setError('');
       console.log('Iniciando escáner...');
@@ -118,7 +117,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
       toast.error('Error al iniciar el escáner');
       setScanning(false);
     }
-  };
+  }, [toast]);
 
   const stopCamera = () => {
     if (html5QrcodeScannerRef.current) {

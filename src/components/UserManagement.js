@@ -17,13 +17,13 @@ const UserManagement = () => {
     activo: true
   });
   const [errors, setErrors] = useState({});
-  const { user, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
   const toast = useToast();
 
   useEffect(() => {
     loadUsers();
     loadRoles();
-  }, []);
+  }, [loadUsers]);
 
   const loadUsers = async () => {
     try {

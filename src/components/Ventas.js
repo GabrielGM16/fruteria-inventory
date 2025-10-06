@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ventasService, productosService } from '../services/api';
 import { useToast } from './Toast';
 import BarcodeScanner from './BarcodeScanner';
-import { formatCurrency, formatDate, formatDateTime } from '../utils/formatters';
+import { formatCurrency, formatDateTime } from '../utils/formatters';
 import { 
   calcularTotalCarrito, 
   calcularSubtotal, 
@@ -39,7 +39,7 @@ const Ventas = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const loadData = async () => {
     try {

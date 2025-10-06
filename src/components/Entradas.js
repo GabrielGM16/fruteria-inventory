@@ -2,10 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { entradasService, productosService, proveedoresService } from '../services/api';
 import { useToast } from './Toast';
-import { formatCurrency, formatDate, formatDateTime } from '../utils/formatters';
+import { formatCurrency, formatDate } from '../utils/formatters';
 import { 
   calcularSubtotal, 
-  validarStock,
   esNumeroPositivo,
   agruparPor,
   sumarPropiedad
@@ -39,7 +38,7 @@ const Entradas = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const loadData = async () => {
     try {

@@ -65,9 +65,8 @@ const generateTicketHTML = (venta, detalles, config) => {
     second: '2-digit'
   });
 
-  // Calcular subtotal, IVA y total
+  // Calcular subtotal y total
   const subtotal = venta.total || 0;
-  const iva = subtotal * 0.16; // 16% IVA
   const total = subtotal;
 
   return `
@@ -596,9 +595,11 @@ export const printEtiqueta = (producto, cantidad = 1) => {
   }
 };
 
-export default {
+const printService = {
   printTicket,
   previewTicket,
   printCierreCaja,
   printEtiqueta
 };
+
+export default printService;

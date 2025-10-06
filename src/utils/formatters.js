@@ -375,7 +375,7 @@ export const formatCardNumber = (cardNumber) => {
   return cardNumber;
 };
 
-export default {
+const formatters = {
   formatCurrency,
   formatNumber,
   formatDate,
@@ -398,3 +398,5 @@ export default {
   formatZipCode,
   formatCardNumber
 };
+
+export default formatters;

@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { productosService } from '../services/api';
 import { useToast } from './Toast';
 import { useAuth } from '../contexts/AuthContext';
-import { formatCurrency, formatDate } from '../utils/formatters';
-import { calcularGanancia, esStockBajo, validarStock } from '../utils/helpers';
+import { formatCurrency } from '../utils/formatters';
+import { calcularGanancia, esStockBajo } from '../utils/helpers';
 import { 
   exportToExcel, 
   exportToCSV, 
@@ -36,7 +36,7 @@ const Inventario = () => {
 
   useEffect(() => {
     loadProductos();
-  }, []);
+  }, [loadProductos]);
 
   const loadProductos = async () => {
     try {

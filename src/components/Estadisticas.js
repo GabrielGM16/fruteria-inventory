@@ -1,16 +1,11 @@
 // src/components/Estadisticas.js
 import React, { useState, useEffect, useCallback } from 'react';
-import { estadisticasService, ventasService, productosService } from '../services/api';
+import { ventasService, productosService } from '../services/api';
 import { useToast } from './Toast';
 import { formatCurrency, formatDate, formatPercent } from '../utils/formatters';
 import { 
   sumarPropiedad, 
-  agruparPor, 
-  obtenerInicioMes, 
-  obtenerFinMes,
-  esHoy,
-  esEstaSemana,
-  esEsteMes
+  agruparPor
 } from '../utils/helpers';
 import { 
   exportToExcel, 
@@ -30,7 +25,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { Line, Bar, Doughnut, Pie } from 'react-chartjs-2';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
