@@ -49,17 +49,6 @@ const Dashboard = () => {
   const toast = useToast();
   const { user, hasPermission } = useAuth();
 
-  useEffect(() => {
-    loadDashboardData();
-    
-    const interval = setInterval(() => {
-      console.log('Dashboard: Actualizando datos automáticamente...');
-      loadDashboardData();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [loadDashboardData]);
-
   const loadDashboardData = useCallback(async () => {
     try {
       console.log('Dashboard: Iniciando carga de datos...');
@@ -122,6 +111,17 @@ const Dashboard = () => {
       setLoading(false);
     }
   }, [toast]);
+
+  useEffect(() => {
+    loadDashboardData();
+    
+    const interval = setInterval(() => {
+      console.log('Dashboard: Actualizando datos automáticamente...');
+      loadDashboardData();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [loadDashboardData]);
 
   const handleManualRefresh = () => {
     console.log('Dashboard: Actualización manual solicitada');

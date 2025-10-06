@@ -26,7 +26,7 @@ const Proveedores = () => {
 
   useEffect(() => {
     loadProveedores();
-  }, [loadProveedores]);
+  }, []);
 
   const loadProveedores = async () => {
     try {
