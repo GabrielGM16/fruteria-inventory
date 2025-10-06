@@ -40,6 +40,10 @@ const UserManagement = () => {
   const { user, hasPermission } = useAuth();
   const toast = useToast();
 
+  // Determinar si el usuario es admin o dueño
+  const isAdmin = user?.rol === 'admin';
+  const isDueno = user?.rol === 'dueño';
+
   const loadUsers = useCallback(async () => {
     try {
       const params = new URLSearchParams({
@@ -126,6 +130,14 @@ const UserManagement = () => {
       newErrors.email = 'Formato de email inválido';
     }
 
+    // Validación adicional para dueño
+    if (isDueno) {
+      const selectedRole = roles.find(r => r.id === parseInt(formData.rol_id));
+      if (selectedRole && selectedRole.nombre !== 'vendedor') {
+        newErrors.rol_id = 'Solo puedes crear usuarios con rol de vendedor';
+      }
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -162,6 +174,12 @@ const UserManagement = () => {
   };
 
   const handleEdit = (user) => {
+    // Si es dueño, solo puede editar vendedores
+    if (isDueno && user.rol_nombre !== 'vendedor') {
+      toast.error('Solo puedes editar usuarios con rol de vendedor');
+      return;
+    }
+
     setEditingUser(user);
     setFormData({
       username: user.username,
@@ -175,6 +193,15 @@ const UserManagement = () => {
   };
 
   const handleToggleStatus = async (userId, currentStatus) => {
+    // Si es dueño, solo puede cambiar estado de vendedores
+    if (isDueno) {
+      const userToToggle = users.find(u => u.id === userId);
+      if (userToToggle && userToToggle.rol_nombre !== 'vendedor') {
+        toast.error('Solo puedes cambiar el estado de usuarios con rol de vendedor');
+        return;
+      }
+    }
+
     try {
       const response = await fetch(`http://localhost:3001/api/users/admin/usuarios/${userId}/toggle-status`, {
         method: 'PATCH',
@@ -260,6 +287,20 @@ const UserManagement = () => {
     });
   };
 
+  // Función para determinar si el usuario actual puede editar otro usuario
+  const canEditUser = (targetUser) => {
+    if (isAdmin) return true;
+    if (isDueno && targetUser.rol_nombre === 'vendedor') return true;
+    return false;
+  };
+
+  // Función para determinar si el usuario actual puede eliminar otro usuario
+  const canDeleteUser = (targetUser) => {
+    if (!isAdmin) return false; // Solo admin puede eliminar
+    if (targetUser.username === 'admin') return false;
+    return true;
+  };
+
   if (loading) {
     return (
       <div style={{ 
@@ -275,7 +316,8 @@ const UserManagement = () => {
     );
   }
 
-  if (!user || user.rol !== 'admin') {
+  // Verificar permisos de acceso
+  if (!user || !hasPermission('users', 'read')) {
     return (
       <div style={{ 
         padding: '40px', 
@@ -286,7 +328,7 @@ const UserManagement = () => {
         margin: '20px'
       }}>
         <h2>⚠️ Acceso Denegado</h2>
-        <p>No tienes permisos para acceder a esta sección. Se requieren permisos de administrador.</p>
+        <p>No tienes permisos para acceder a esta sección.</p>
       </div>
     );
   }
@@ -308,6 +350,9 @@ const UserManagement = () => {
         </h1>
         <p style={{ color: '#718096', fontSize: '16px' }}>
           Administrar usuarios y roles del sistema
+          {isDueno && <span style={{ marginLeft: '8px', color: '#3182ce', fontWeight: '600' }}>
+            (Acceso limitado a vendedores)
+          </span>}
         </p>
       </div>
 
@@ -437,27 +482,29 @@ const UserManagement = () => {
           </div>
 
           {/* Add User Button */}
-          <button
-            onClick={() => setShowModal(true)}
-            style={{
-              background: 'linear-gradient(135deg, #667eea, #764ba2)',
-              color: 'white',
-              border: 'none',
-              padding: '12px 24px',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'transform 0.2s'
-            }}
-            onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-            onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
-          >
-            ➕ Nuevo Usuario
-          </button>
+          {hasPermission('users', 'create') && (
+            <button
+              onClick={() => setShowModal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'transform 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+              onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
+            >
+              ➕ Nuevo Usuario
+            </button>
+          )}
         </div>
       </div>
 
@@ -480,88 +527,92 @@ const UserManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {users.map((user, index) => (
-                <tr key={user.id} style={{ 
+              {users.map((targetUser, index) => (
+                <tr key={targetUser.id} style={{ 
                   borderBottom: '1px solid #e2e8f0',
                   background: index % 2 === 0 ? 'white' : '#f9fafb'
                 }}>
                   <td style={{ padding: '16px' }}>
                     <div>
                       <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
-                        {user.nombre}
+                        {targetUser.nombre}
                       </div>
                       <div style={{ fontSize: '14px', color: '#718096' }}>
-                        @{user.username}
+                        @{targetUser.username}
                       </div>
-                      {user.email && (
+                      {targetUser.email && (
                         <div style={{ fontSize: '12px', color: '#a0aec0' }}>
-                          {user.email}
+                          {targetUser.email}
                         </div>
                       )}
                     </div>
                   </td>
                   <td style={{ padding: '16px' }}>
                     <span style={{
-                      background: getRoleBadgeColor(user.rol_nombre),
+                      background: getRoleBadgeColor(targetUser.rol_nombre),
                       color: 'white',
                       padding: '4px 12px',
                       borderRadius: '20px',
                       fontSize: '12px',
                       fontWeight: '600'
                     }}>
-                      {user.rol_nombre}
+                      {targetUser.rol_nombre}
                     </span>
                   </td>
                   <td style={{ padding: '16px' }}>
                     <span style={{
-                      background: user.activo ? '#c6f6d5' : '#fed7d7',
-                      color: user.activo ? '#22543d' : '#742a2a',
+                      background: targetUser.activo ? '#c6f6d5' : '#fed7d7',
+                      color: targetUser.activo ? '#22543d' : '#742a2a',
                       padding: '4px 12px',
                       borderRadius: '20px',
                       fontSize: '12px',
                       fontWeight: '600'
                     }}>
-                      {user.activo ? '✅ Activo' : '❌ Inactivo'}
+                      {targetUser.activo ? '✅ Activo' : '❌ Inactivo'}
                     </span>
                   </td>
                   <td style={{ padding: '16px', fontSize: '14px', color: '#718096' }}>
-                    {formatDate(user.ultimo_login)}
+                    {formatDate(targetUser.ultimo_login)}
                   </td>
                   <td style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => handleEdit(user)}
-                        style={{
-                          background: '#4299e1',
-                          color: 'white',
-                          border: 'none',
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          cursor: 'pointer'
-                        }}
-                        title="Editar usuario"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => handleToggleStatus(user.id, user.activo)}
-                        style={{
-                          background: user.activo ? '#f56565' : '#48bb78',
-                          color: 'white',
-                          border: 'none',
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          cursor: 'pointer'
-                        }}
-                        title={user.activo ? 'Desactivar usuario' : 'Activar usuario'}
-                      >
-                        {user.activo ? '🔒' : '🔓'}
-                      </button>
-                      {user.username !== 'admin' && (
+                      {canEditUser(targetUser) && (
                         <button
-                          onClick={() => setShowDeleteConfirm(user.id)}
+                          onClick={() => handleEdit(targetUser)}
+                          style={{
+                            background: '#4299e1',
+                            color: 'white',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                          title="Editar usuario"
+                        >
+                          ✏️
+                        </button>
+                      )}
+                      {canEditUser(targetUser) && (
+                        <button
+                          onClick={() => handleToggleStatus(targetUser.id, targetUser.activo)}
+                          style={{
+                            background: targetUser.activo ? '#f56565' : '#48bb78',
+                            color: 'white',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                          title={targetUser.activo ? 'Desactivar usuario' : 'Activar usuario'}
+                        >
+                          {targetUser.activo ? '🔒' : '🔓'}
+                        </button>
+                      )}
+                      {canDeleteUser(targetUser) && (
+                        <button
+                          onClick={() => setShowDeleteConfirm(targetUser.id)}
                           style={{
                             background: '#e53e3e',
                             color: 'white',
@@ -779,11 +830,17 @@ const UserManagement = () => {
                   }}
                 >
                   <option value="">Seleccione un rol</option>
-                  {roles.map(role => (
-                    <option key={role.id} value={role.id}>
-                      {role.nombre} - {role.descripcion}
-                    </option>
-                  ))}
+                  {roles.map(role => {
+                    // Si es dueño, solo mostrar rol vendedor
+                    if (isDueno && role.nombre !== 'vendedor') {
+                      return null;
+                    }
+                    return (
+                      <option key={role.id} value={role.id}>
+                        {role.nombre} - {role.descripcion}
+                      </option>
+                    );
+                  })}
                 </select>
                 {errors.rol_id && (
                   <div style={{ color: '#e53e3e', fontSize: '12px', marginTop: '4px' }}>

@@ -296,44 +296,6 @@ const Login = () => {
     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
   };
 
-  const demoCredentialsStyle = {
-    marginTop: '2rem',
-    padding: '1rem',
-    backgroundColor: '#f9fafb',
-    borderRadius: '0.5rem',
-    border: '1px solid #e5e7eb'
-  };
-
-  const demoTitleStyle = {
-    fontSize: '0.75rem',
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: '0.75rem',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em'
-  };
-
-  const demoItemStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '0.5rem',
-    backgroundColor: '#ffffff',
-    borderRadius: '0.25rem',
-    border: '1px solid #f3f4f6',
-    fontSize: '0.875rem',
-    transition: 'border-color 0.2s ease-in-out'
-  };
-
-  const demoLabelStyle = {
-    color: '#6b7280'
-  };
-
-  const demoValueStyle = {
-    color: '#4f46e5',
-    fontFamily: 'monospace',
-    fontSize: '0.75rem'
-  };
 
   const footerStyle = {
     marginTop: '1.5rem',
@@ -496,25 +458,7 @@ const Login = () => {
               </button>
             </form>
 
-            {/* Demo Credentials */}
-            <div style={demoCredentialsStyle}>
-              <h4 style={demoTitleStyle}>
-                Credenciales de Prueba
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div 
-                  style={demoItemStyle}
-                  onMouseEnter={(e) => e.target.style.borderColor = '#c7d2fe'}
-                  onMouseLeave={(e) => e.target.style.borderColor = '#f3f4f6'}
-                >
-                  <span style={demoLabelStyle}>
-                    <span style={{ fontWeight: '500', color: '#111827' }}>Admin:</span> admin
-                  </span>
-                  <span style={{ color: '#9ca3af' }}>•••</span>
-                  <span style={demoValueStyle}>admin123</span>
-                </div>
-              </div>
-            </div>
+
           </div>
         </div>
 
