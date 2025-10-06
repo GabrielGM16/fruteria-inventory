@@ -34,10 +34,6 @@ const Inventario = () => {
     activo: true
   });
 
-  useEffect(() => {
-    loadProductos();
-  }, [loadProductos]);
-
   const loadProductos = async () => {
     try {
       setLoading(true);
@@ -51,6 +47,10 @@ const Inventario = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadProductos();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

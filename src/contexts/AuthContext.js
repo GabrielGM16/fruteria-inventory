@@ -102,6 +102,12 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
     
+    // Validar que module no sea undefined o null
+    if (!module) {
+      console.log('🔍 DEBUG - hasPermission: module is undefined or null');
+      return false;
+    }
+    
     const permissions = user.permisos;
     console.log('🔍 DEBUG - hasPermission called:', { module, action, permissions });
     console.log('🔍 ESTRUCTURA PERMISOS EN hasPermission:', JSON.stringify(permissions, null, 2));
@@ -143,35 +149,38 @@ export const AuthProvider = ({ children }) => {
       }
       
       // If not found directly, try to split module_action format
-      const parts = module.split('_');
-      if (parts.length >= 2) {
-        const moduleKey = parts[0];
-        const actionKey = parts.slice(1).join('_');
-        
-        // Traducir nombres de español a inglés
-        const translatedModule = moduleMapping[moduleKey] || moduleKey;
-        const translatedAction = actionMapping[actionKey] || actionKey;
-        
-        console.log('🔍 DEBUG - Trying split format:', { 
-          moduleKey, 
-          actionKey, 
-          translatedModule, 
-          translatedAction, 
-          modulePermissions: permissions[translatedModule] 
-        });
-        
-        if (permissions[translatedModule]) {
-          // If permission is boolean (true = all actions allowed)
-          if (typeof permissions[translatedModule] === 'boolean') {
-            console.log('🔍 DEBUG - Module permission is boolean:', permissions[translatedModule]);
-            return permissions[translatedModule];
-          }
+      // Asegurar que module es string antes de hacer split
+      if (typeof module === 'string' && module.includes('_')) {
+        const parts = module.split('_');
+        if (parts.length >= 2) {
+          const moduleKey = parts[0];
+          const actionKey = parts.slice(1).join('_');
           
-          // If permission is object, check specific action
-          if (typeof permissions[translatedModule] === 'object') {
-            const result = permissions[translatedModule][translatedAction] === true;
-            console.log('🔍 DEBUG - Module permission is object, action result:', result);
-            return result;
+          // Traducir nombres de español a inglés
+          const translatedModule = moduleMapping[moduleKey] || moduleKey;
+          const translatedAction = actionMapping[actionKey] || actionKey;
+          
+          console.log('🔍 DEBUG - Trying split format:', { 
+            moduleKey, 
+            actionKey, 
+            translatedModule, 
+            translatedAction, 
+            modulePermissions: permissions[translatedModule] 
+          });
+          
+          if (permissions[translatedModule]) {
+            // If permission is boolean (true = all actions allowed)
+            if (typeof permissions[translatedModule] === 'boolean') {
+              console.log('🔍 DEBUG - Module permission is boolean:', permissions[translatedModule]);
+              return permissions[translatedModule];
+            }
+            
+            // If permission is object, check specific action
+            if (typeof permissions[translatedModule] === 'object') {
+              const result = permissions[translatedModule][translatedAction] === true;
+              console.log('🔍 DEBUG - Module permission is object, action result:', result);
+              return result;
+            }
           }
         }
       }

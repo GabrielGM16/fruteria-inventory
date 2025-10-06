@@ -36,10 +36,6 @@ const Entradas = () => {
     nota: ''
   });
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
   const loadData = async () => {
     try {
       console.log('Entradas: Iniciando carga de datos...');
@@ -82,6 +78,10 @@ const Entradas = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

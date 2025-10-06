@@ -106,7 +106,7 @@ function App() {
               } />
               
               <Route path="/usuarios" element={
-                <ProtectedRoute requiredPermission="usuarios_lectura">
+                <ProtectedRoute requiredPermission={{ module: 'users', action: 'read' }}>
                   <Navigation />
                   <main className="main-content">
                     <UserManagement />

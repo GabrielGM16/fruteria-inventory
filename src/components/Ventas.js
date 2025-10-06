@@ -37,10 +37,6 @@ const Ventas = () => {
   const [filtroFecha, setFiltroFecha] = useState('');
   const [filtroMetodoPago, setFiltroMetodoPago] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
   const loadData = async () => {
     try {
       setLoading(true);
@@ -63,6 +59,10 @@ const Ventas = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const abrirModalCantidad = (producto) => {
     setProductoSeleccionado(producto);
