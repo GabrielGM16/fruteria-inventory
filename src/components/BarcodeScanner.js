@@ -9,27 +9,30 @@ const BarcodeScanner = ({ onScan, onClose }) => {
   const [error, setError] = useState('');
   const [scanMode, setScanMode] = useState('manual'); // 'manual' o 'camera'
   const html5QrcodeScannerRef = useRef(null);
+  const barcodeReaderRef = useRef(null);
+  const isInitializingRef = useRef(false); // Prevenir inicializaciones múltiples
   const toast = useToast();
 
-  // Limpiar escáner al desmontar o cambiar de modo
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
+  const stopCamera = useCallback(() => {
+    if (html5QrcodeScannerRef.current) {
+      html5QrcodeScannerRef.current.clear().catch(err => {
+        console.log('Error stopping camera:', err);
+      });
+      html5QrcodeScannerRef.current = null;
+    }
+    setScanning(false);
+    isInitializingRef.current = false;
   }, []);
 
-  useEffect(() => {
-    if (scanMode === 'camera' && scanning) {
-      // Pequeño delay para asegurar que el DOM esté listo
-      setTimeout(() => {
-        initializeScanner();
-      }, 100);
-    } else {
-      stopCamera();
-    }
-  }, [scanMode, scanning, initializeScanner]);
-
   const initializeScanner = useCallback(async () => {
+    // Prevenir múltiples inicializaciones simultáneas
+    if (isInitializingRef.current) {
+      console.log('Ya hay una inicialización en progreso...');
+      return;
+    }
+
+    isInitializingRef.current = true;
+
     try {
       setError('');
       console.log('Iniciando escáner...');
@@ -39,6 +42,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
       if (!readerElement) {
         console.error('Elemento barcode-reader no encontrado');
         setError('Error al inicializar el escáner. Recargando...');
+        isInitializingRef.current = false;
         return;
       }
 
@@ -60,7 +64,6 @@ const BarcodeScanner = ({ onScan, onClose }) => {
         fps: 10,
         qrbox: { width: 250, height: 150 },
         rememberLastUsedCamera: true,
-        // Soportar códigos de barras
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.EAN_8,
@@ -96,7 +99,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
 
       // Callback para errores
       const onScanError = (errorMessage) => {
-        // Solo loguear errores importantes, no el "no se encontró código"
+        // Solo loguear errores importantes
         if (!errorMessage.includes('NotFoundException') && 
             !errorMessage.includes('No MultiFormat Readers')) {
           console.log('Scan error:', errorMessage);
@@ -116,18 +119,46 @@ const BarcodeScanner = ({ onScan, onClose }) => {
       setError(`No se pudo iniciar el escáner: ${err.message}. Verifica los permisos de la cámara.`);
       toast.error('Error al iniciar el escáner');
       setScanning(false);
+      isInitializingRef.current = false;
     }
-  }, [toast]);
+  }, [toast, onScan, stopCamera]);
 
-  const stopCamera = () => {
-    if (html5QrcodeScannerRef.current) {
-      html5QrcodeScannerRef.current.clear().catch(err => {
-        console.log('Error stopping camera:', err);
-      });
-      html5QrcodeScannerRef.current = null;
+  // Limpiar escáner al desmontar
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
+  // Inicializar escáner cuando cambia el modo
+  useEffect(() => {
+    if (scanMode === 'camera' && scanning) {
+      const initWithRetry = (attempt = 1, maxAttempts = 5) => {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            const readerElement = barcodeReaderRef.current || document.getElementById('barcode-reader');
+            
+            if (readerElement && readerElement.offsetParent !== null) {
+              console.log('✅ Elemento barcode-reader encontrado y visible, inicializando escáner...');
+              initializeScanner();
+            } else if (attempt < maxAttempts) {
+              console.log(`Elemento barcode-reader no disponible, reintentando... (${attempt}/${maxAttempts})`);
+              initWithRetry(attempt + 1, maxAttempts);
+            } else {
+              console.error('No se pudo encontrar el elemento barcode-reader después de varios intentos');
+              setError('Error: No se pudo inicializar el escáner. El elemento DOM no está disponible. Intenta cambiar a modo manual.');
+              toast.error('Error al inicializar el escáner - elemento no encontrado');
+              isInitializingRef.current = false;
+            }
+          }, attempt === 1 ? 100 : 300);
+        });
+      };
+      
+      initWithRetry();
+    } else {
+      stopCamera();
     }
-    setScanning(false);
-  };
+  }, [scanMode, scanning]); // Solo depende de scanMode y scanning
 
   const handleManualSubmit = (e) => {
     e.preventDefault();
@@ -139,13 +170,18 @@ const BarcodeScanner = ({ onScan, onClose }) => {
   };
 
   const handleKeyPress = (e) => {
-    // Detectar entrada rápida de escáner USB (simula escritura rápida)
     if (e.key === 'Enter' && manualCode.trim()) {
       handleManualSubmit(e);
     }
   };
 
   const handleModeChange = (mode) => {
+    // Prevenir cambios si ya estamos inicializando
+    if (isInitializingRef.current && mode === 'camera') {
+      console.log('Inicialización en progreso, espera...');
+      return;
+    }
+
     setScanMode(mode);
     if (mode === 'camera') {
       setScanning(true);
@@ -177,7 +213,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
         overflowY: 'auto'
       }}>
         <h3 style={{ marginTop: 0, textAlign: 'center', color: '#1a202c' }}>
-          🏷️ Escanear Código de Barras
+          Escanear Código de Barras
         </h3>
 
         {/* Selector de modo */}
@@ -202,10 +238,11 @@ const BarcodeScanner = ({ onScan, onClose }) => {
               transition: 'all 0.3s ease'
             }}
           >
-            ⌨️ Manual
+            Manual
           </button>
           <button
             onClick={() => handleModeChange('camera')}
+            disabled={isInitializingRef.current}
             style={{
               flex: 1,
               padding: '10px',
@@ -213,12 +250,13 @@ const BarcodeScanner = ({ onScan, onClose }) => {
               borderRadius: '6px',
               backgroundColor: scanMode === 'camera' ? '#667eea' : '#e2e8f0',
               color: scanMode === 'camera' ? 'white' : '#4a5568',
-              cursor: 'pointer',
+              cursor: isInitializingRef.current ? 'not-allowed' : 'pointer',
               fontWeight: scanMode === 'camera' ? 'bold' : 'normal',
-              transition: 'all 0.3s ease'
+              transition: 'all 0.3s ease',
+              opacity: isInitializingRef.current ? 0.6 : 1
             }}
           >
-            📷 Cámara
+            Cámara
           </button>
         </div>
 
@@ -233,7 +271,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
               textAlign: 'center'
             }}>
               <p style={{ margin: '0 0 10px 0', color: '#2d3748', fontWeight: 'bold' }}>
-                💡 <strong>Tres formas de ingresar el código:</strong>
+                <strong>Tres formas de ingresar el código:</strong>
               </p>
               <ol style={{ textAlign: 'left', color: '#4a5568', fontSize: '0.9rem' }}>
                 <li>Escribe el código manualmente</li>
@@ -276,7 +314,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
                   opacity: manualCode.trim() ? 1 : 0.5
                 }}
               >
-                ✅ Buscar Producto
+                Buscar Producto
               </button>
             </form>
           </div>
@@ -310,7 +348,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
               textAlign: 'left'
             }}>
               <p style={{ margin: '0 0 10px 0', color: '#2c5282', fontSize: '0.95rem', fontWeight: 'bold' }}>
-                📷 <strong>Instrucciones importantes:</strong>
+                <strong>Instrucciones importantes:</strong>
               </p>
               <ol style={{ margin: 0, color: '#2d3748', fontSize: '0.9rem', paddingLeft: '20px' }}>
                 <li>El navegador te pedirá permiso para usar la cámara - <strong>debes permitirlo</strong></li>
@@ -330,7 +368,11 @@ const BarcodeScanner = ({ onScan, onClose }) => {
               minHeight: '300px',
               border: '2px solid #e2e8f0'
             }}>
-              <div id="barcode-reader" style={{ width: '100%' }}></div>
+              <div 
+                id="barcode-reader" 
+                ref={barcodeReaderRef}
+                style={{ width: '100%' }}
+              ></div>
             </div>
 
             {/* Controles */}
@@ -338,12 +380,14 @@ const BarcodeScanner = ({ onScan, onClose }) => {
               <button
                 onClick={() => {
                   stopCamera();
-                  handleModeChange('camera');
+                  setTimeout(() => {
+                    handleModeChange('camera');
+                  }, 100);
                 }}
                 className="btn btn-warning"
                 style={{ flex: 1, padding: '10px' }}
               >
-                🔄 Reintentar
+                Reintentar
               </button>
               
               <button
@@ -351,7 +395,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
                 className="btn btn-danger"
                 style={{ flex: 1, padding: '10px' }}
               >
-                ⏹️ Cancelar y usar Manual
+                Cancelar y usar Manual
               </button>
             </div>
           </div>
@@ -372,7 +416,7 @@ const BarcodeScanner = ({ onScan, onClose }) => {
             padding: '10px'
           }}
         >
-          ✕ Cerrar
+          Cerrar
         </button>
       </div>
     </div>
