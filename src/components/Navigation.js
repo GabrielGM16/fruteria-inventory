@@ -20,12 +20,19 @@ const Navigation = () => {
   ];
 
   const filteredMenuItems = menuItems.filter(item => {
+    console.log('🔍 DEBUG - Filtering menu item:', item.name, { permission: item.permission, roles: item.roles });
+    
     if (item.permission) {
-      return hasPermission(item.permission);
+      const hasAccess = hasPermission(item.permission);
+      console.log('🔍 DEBUG - Permission check result:', item.name, hasAccess);
+      return hasAccess;
     }
     if (item.roles) {
-      return item.roles.some(role => hasRole(role));
+      const hasAccess = item.roles.some(role => hasRole(role));
+      console.log('🔍 DEBUG - Role check result:', item.name, hasAccess);
+      return hasAccess;
     }
+    console.log('🔍 DEBUG - Default access (Dashboard):', item.name);
     return true; // Dashboard is accessible to all authenticated users
   });
 
